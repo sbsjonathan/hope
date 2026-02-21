@@ -302,8 +302,9 @@ export default {
       finalTxt = aplicarAbreviacaoGlobalQuandoTiverCap(finalTxt);
       finalTxt = aplicarNumeracaoLivroPorExtenso(finalTxt);
 
-      finalTxt = finalTxt.replace(/\b(\d+:\d+(?:\s*,\s*\d+)+)(?!\s*:\d)/g, (m) => m.replace(/\s*,\s*/g, ", "));
-      finalTxt = finalTxt.replace(/\b(\d+:\d+(?:\s*,\s*\d+)*-\d+)(?!\s*:\d)/g, (m) => m.replace(/\s*,\s*/g, ", "));
+      // remove espaço logo após "(" e logo antes de ")"
+finalTxt = finalTxt.replace(/\(\s+/g, "(");
+finalTxt = finalTxt.replace(/\s+\)/g, ")");
     }
     // =====================================================================================
     // >>>PROCESSADOR_3_BIBLIA_FIM<<<
