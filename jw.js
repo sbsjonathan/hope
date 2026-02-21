@@ -101,7 +101,7 @@ export default {
       return String.fromCharCode(code);
     });
 
-    texto = texto.replace(/\\'([0-9a-fA-F]{2})/g, (_, hex) => {
+    texto = texto.replace(/\\\'([0-9a-fA-F]{2})/g, (_, hex) => {
       const b = parseInt(hex, 16);
       return String.fromCharCode(b);
     });
@@ -142,224 +142,172 @@ export default {
     texto = texto.replace(/[ \t]{2,}/g, " ");
     texto = texto.trim();
 
-    texto = texto.replace(/\n?(?:^|\n)\s*\[Quadro\]\s*/g, "\n[Quadro] ");
-    texto = texto.replace(/\s*\[Fim do quadro\.?\]\s*/g, " [Fim do quadro.]\n");
+    texto = texto.replace(/\n?(\s*§AST§\s*)\n?/g, " (*) ");
+    texto = texto.replace(/\n{3,}/g, "\n\n");
 
-    const linhas = texto.split("\n").map((l) => l.replace(/^\s+/g, "").replace(/\s+$/g, ""));
+    // guarda um "finalTxt" (seu código usa isso nos processadores)
+    let finalTxt = texto;
 
-    let idx = 0;
-    while (idx < linhas.length && !linhas[idx].trim()) idx++;
-
-    if (idx < linhas.length) {
-      let line = linhas[idx].replace(/[ \t]+/g, " ").trim();
-
-      const month = "[A-Za-zÀ-ÿçÇ]+";
-      const year = "\\d(?:\\s*\\d){3}";
-      const dateSingleMonth =
-        `(?:\\d{1,2}\\s*(?:a|à|[-–—])\\s*\\d{1,2}|\\d{1,2})\\s+de\\s+${month}\\s+de\\s+${year}\\s*:`;
-      const dateTwoMonths =
-        `\\d{1,2}\\s+de\\s+${month}\\s*(?:a|à|[-–—])\\s*\\d{1,2}\\s+de\\s+${month}\\s+de\\s+${year}\\s*:`;
-      const dateRe = new RegExp(`(${dateTwoMonths})|(${dateSingleMonth})`, "gi");
-
-      const matches = [];
-      let m;
-      while ((m = dateRe.exec(line)) !== null) matches.push({ i: m.index, l: m[0].length });
-
-      if (matches.length >= 2 && matches[0].i <= 2) {
-        const cut = matches[1].i;
-        let header = line.slice(0, cut).trim();
-        header = header.replace(/(\d)\s+(?=\d)/g, "$1");
-        header = header.replace(/\s*:\s*/g, ": ");
-        line = header;
-      } else {
-        line = line.replace(/(\d)\s+(?=\d)/g, "$1");
-        line = line.replace(/\s*:\s*/g, ": ");
-      }
-
-      const c = line.indexOf(":");
-      if (c !== -1) {
-        const a = line.slice(0, c).trim();
-        const b = line.slice(c + 1).trim();
-        linhas[idx] = a;
-        if (b) linhas.splice(idx + 1, 0, b);
-      } else {
-        linhas[idx] = line;
-      }
-    }
-
-    let finalTxt = linhas
-      .map((l) => l.replace(/[ \t]{2,}/g, " ").trim())
-      .filter((l) => l.length > 0)
-      .join("\n\n");
-
+    // =====================================================================================
+    // >>>PROCESSADOR_3_BIBLIA_INICIO<<<
+    // =====================================================================================
     {
-      const blocos = finalTxt
-        .split(/\n{2,}/)
-        .map((b) => b.trim())
-        .filter(Boolean);
+      const normSpaces = (s) => s.replace(/\s+/g, " ").trim();
+      const normalizeOrdinalPrefix = (s) =>
+        s
+          .replace(/\bPrimeir[ao]\b/gi, "1")
+          .replace(/\bSegund[ao]\b/gi, "2")
+          .replace(/\bTerceir[ao]\b/gi, "3");
 
-      const month = "[A-Za-zÀ-ÿçÇ]+";
-      const dateLike = new RegExp(
-        "^(?:" +
-          `\\d{1,2}\\s+de\\s+${month}\\s+de\\s+\\d{4}` +
-          "|" +
-          `\\d{1,2}\\s*(?:a|à|[-–—])\\s*\\d{1,2}\\s+de\\s+${month}\\s+de\\s+\\d{4}` +
-          "|" +
-          `\\d{1,2}\\s+de\\s+${month}\\s*(?:a|à|[-–—])\\s*\\d{1,2}\\s+de\\s+${month}\\s+de\\s+\\d{4}` +
-          ")\\b",
-        "i"
-      );
+      const juntarDigitosSeparados = (s) => s.replace(/(\d)\s+(?=\d)/g, "$1");
+      const limparEspacosPontuacao = (s) =>
+        s
+          .replace(/\s+([,.;:!?])/g, "$1")
+          .replace(/\(\s+/g, "(")
+          .replace(/\s+\)/g, ")")
+          .replace(/\s{2,}/g, " ")
+          .trim();
 
-      if (blocos.length >= 4 && dateLike.test(blocos[0])) {
-        const canticoIdx = blocos.findIndex((b, i) => i > 0 && /^c[âa]ntico\b/i.test(b));
-        if (canticoIdx > 1) {
-          const [c] = blocos.splice(canticoIdx, 1);
-          blocos.splice(1, 0, c);
-          finalTxt = blocos.join("\n\n");
-        }
-      }
+      const abreviarLivroNome = (livroCru) => {
+        const n = normSpaces(normalizeOrdinalPrefix(livroCru));
+        return ABREV_BIBLIA[n] || n;
+      };
+
+      const formatarVersosPorExtenso = (t) => {
+        t = t.replace(/\b(\d+)\s+versículos?\s+(\d+)\s+a\s+(\d+)\b/gi, "$1:$2-$3");
+        t = t.replace(/\b(\d+)\s+versículos?\s+(\d+)\b/gi, "$1:$2");
+        t = t.replace(/\b(\d+):(\d+)\s+a\s+(\d+):(\d+)\b/gi, "$1:$2-$3:$4");
+        return t;
+      };
+
+      const ajustarListaComA = (t) =>
+        t.replace(/(\d+:\d+(?:,\d+)+)\s+a\s+(\d+)\b/g, (m, lista, fim) => {
+          const parts = lista.split(":");
+          if (parts.length !== 2) return m;
+          const cap = parts[0];
+          const vs = parts[1].split(",").map((x) => x.trim()).filter(Boolean);
+          if (!vs.length) return m;
+          const last = vs[vs.length - 1];
+          return `${cap}:${vs.slice(0, -1).join(",")},${last}-${parseInt(fim, 10)}`;
+        });
+
+      const padronizarVirgulasEmRefs = (t) => {
+        t = t.replace(/\b(\d+:\d+(?:\s*,\s*\d+)+)(?!\s*:\d)/g, (m, lista) => lista.replace(/\s*,\s*/g, ", "));
+        t = t.replace(/\b(\d+:\d+(?:\s*,\s*\d+)*-\d+)(?!\s*:\d)/g, (m, r) => r.replace(/\s*,\s*/g, ", "));
+        t = t.replace(/\b(\d+:\d+-\d+:\d+)(?!\s*:\d)/g, (m, r) => r.replace(/\s*,\s*/g, ", "));
+        return t;
+      };
+
+      const abreviarReferenciasNoTrecho = (trecho) => {
+        let t = ` ${trecho} `;
+        t = juntarDigitosSeparados(t);
+        t = normalizeOrdinalPrefix(t);
+        t = formatarVersosPorExtenso(t);
+        t = ajustarListaComA(t);
+
+        // ===== PATCH 1 =====
+        // "Capítulo X:YY" sem nome do livro (continua do livro anterior na mesma frase/lista)
+        t = t.replace(/\bcap[íi]tulo\s+(\d+)\s*:\s*(\d+(?:\s*,\s*\d+)*)\b/gi, (_, cap, lista) => {
+          const c = parseInt(cap, 10);
+          const lst = lista.replace(/\s+/g, "");
+          return `${c}:${lst}`.replace(/,(?=\d)/g, ", ");
+        });
+
+        // "Capítulo X versículo(s) Y" sem livro
+        t = t.replace(/\bcap[íi]tulo\s+(\d+)\s+vers[íi]culo\s+(\d+)\b/gi, (_, cap, v) => `${parseInt(cap, 10)}:${parseInt(v, 10)}`);
+        t = t.replace(/\bcap[íi]tulo\s+(\d+)\s+vers[íi]culos?\s+(\d+)\s+a\s+(\d+)\b/gi, (_, cap, v1, v2) => `${parseInt(cap, 10)}:${parseInt(v1, 10)}-${parseInt(v2, 10)}`);
+        t = t.replace(/\bcap[íi]tulo\s+(\d+)\s+vers[íi]culos?\s+(\d+(?:\s*,\s*\d+)*)\b/gi, (_, cap, lista) => {
+          const c = parseInt(cap, 10);
+          const lst = lista.replace(/\s+/g, "");
+          return `${c}:${lst}`.replace(/,(?=\d)/g, ", ");
+        });
+        // ===== /PATCH 1 =====
+
+        t = t.replace(
+          /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+(\d+)\s+vers[íi]culo\s+(\d+)/gi,
+          (_, livro, cap, v) => `${abreviarLivroNome(livro)} ${parseInt(cap, 10)}:${parseInt(v, 10)}`
+        );
+
+        t = t.replace(
+          /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+(\d+)\s+vers[íi]culos?\s+(\d+)\s+a\s+(\d+)/gi,
+          (_, livro, cap, v1, v2) =>
+            `${abreviarLivroNome(livro)} ${parseInt(cap, 10)}:${parseInt(v1, 10)}-${parseInt(v2, 10)}`
+        );
+
+        t = t.replace(
+          /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+(\d+)\s+vers[íi]culos?\s+(\d+(?:\s*,\s*\d+)*)/gi,
+          (_, livro, cap, lista) => `${abreviarLivroNome(livro)} ${parseInt(cap, 10)}:${lista.replace(/\s+/g, "")}`
+        );
+
+        t = t.replace(
+          /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+(\d+)\s*:\s*(\d+(?:\s*,\s*\d+)*)\s+a\s*(\d+)/gi,
+          (_, livro, cap, lista, fim) => {
+            const L = abreviarLivroNome(livro);
+            const c = parseInt(cap, 10);
+            const vs = lista.replace(/\s+/g, "").split(",").filter(Boolean);
+            if (!vs.length) return `${L} ${c}:${parseInt(fim, 10)}`;
+            const last = vs[vs.length - 1];
+            return `${L} ${c}:${vs.slice(0, -1).join(",")},${last}-${parseInt(fim, 10)}`;
+          }
+        );
+
+        t = t.replace(
+          /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+(\d+)\s*:\s*(\d+(?:\s*,\s*\d+)*)/gi,
+          (_, livro, cap, lista) => `${abreviarLivroNome(livro)} ${parseInt(cap, 10)}:${lista.replace(/\s+/g, "")}`
+        );
+
+        t = t.replace(
+          /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+(\d+)(?!\s*:\s*\d)/gi,
+          (_, livro, cap) => `${abreviarLivroNome(livro)} ${parseInt(cap, 10)}`
+        );
+
+        const refRegex =
+          /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+(\d+:\d+(?:[-–]\d+)?(?:,\s*\d+)*)/g;
+
+        t = t.replace(refRegex, (m, livro, ref) => `${abreviarLivroNome(livro)} ${ref.replace(/\s+/g, "")}`);
+
+        t = padronizarVirgulasEmRefs(t);
+
+        return limparEspacosPontuacao(normSpaces(t));
+      };
+
+      const aplicarAbreviacaoSoNosParenteses = (txt) =>
+        txt.replace(/\(([\n()]*)\)/g, (m, dentro) => `(${abreviarReferenciasNoTrecho(dentro)})`);
+
+      const aplicarAbreviacaoAposTravessao = (txt) =>
+        txt.replace(/—\s*([^\n.]+)\./g, (m, trecho) => `— ${abreviarReferenciasNoTrecho(trecho)}.`);
+
+      const aplicarAbreviacaoGlobalQuandoTiverCap = (txt) =>
+        txt.replace(
+          /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+\d+[^\n]*/gi,
+          (m) => abreviarReferenciasNoTrecho(m)
+        );
+
+      // ===== PATCH 2 =====
+      // Fora de parênteses: numerar "Primeira/Primera/Segunda/Terceira" quando for LIVRO bíblico,
+      // mas manter o nome por extenso (ex.: "1 Pedro", não "1 Ped.").
+      const aplicarNumeracaoLivroPorExtenso = (txt) => {
+        const re1 = /\b(?:prim(?:e)?ir[ao]|primera)\s+(Samuel|Reis|Crônicas|Coríntios|Pedro|João|Timóteo|Tessalonicenses)\b/gi;
+        const re2 = /\b(?:segund[ao]|segunda)\s+(Samuel|Reis|Crônicas|Coríntios|Pedro|João|Timóteo|Tessalonicenses)\b/gi;
+        const re3 = /\b(?:terceir[ao]|terceira)\s+(João)\b/gi;
+        return txt
+          .replace(re1, (_, livro) => `1 ${livro}`)
+          .replace(re2, (_, livro) => `2 ${livro}`)
+          .replace(re3, (_, livro) => `3 ${livro}`);
+      };
+      // ===== /PATCH 2 =====
+
+      finalTxt = aplicarAbreviacaoSoNosParenteses(finalTxt);
+      finalTxt = aplicarAbreviacaoAposTravessao(finalTxt);
+      finalTxt = aplicarAbreviacaoGlobalQuandoTiverCap(finalTxt);
+      finalTxt = aplicarNumeracaoLivroPorExtenso(finalTxt);
+
+      finalTxt = finalTxt.replace(/\b(\d+:\d+(?:\s*,\s*\d+)+)(?!\s*:\d)/g, (m) => m.replace(/\s*,\s*/g, ", "));
+      finalTxt = finalTxt.replace(/\b(\d+:\d+(?:\s*,\s*\d+)*-\d+)(?!\s*:\d)/g, (m) => m.replace(/\s*,\s*/g, ", "));
     }
-
-// >>>PROCESSADOR_3_BIBLIA_INICIO<<<
-{
-  // NOVA REGRA 1: Padronizar livros numerados no texto inteiro
-  // Evita transformar "Primeira coisa" em "1 coisa", mas garante
-  // que "Primeira Pedro" (ou "Primera", se houver erro de digitação) vire "1 Pedro" no corpo do texto.
-  const padronizarNumerosLivros = (txt) => {
-    return txt
-      .replace(/\b(?:Primei?r[ao]|1[ºª]?)\s+(Coríntios|Pedro|João|Timóteo|Tessalonicenses|Samuel|Reis|Crônicas)\b/gi, "1 $1")
-      .replace(/\b(?:Segund[ao]|2[ºª]?)\s+(Coríntios|Pedro|João|Timóteo|Tessalonicenses|Samuel|Reis|Crônicas)\b/gi, "2 $1")
-      .replace(/\b(?:Terceir[ao]|3[ºª]?)\s+(João)\b/gi, "3 $1");
-  };
-
-  finalTxt = padronizarNumerosLivros(finalTxt);
-
-  // NOVA REGRA 2: Remover a palavra "Capítulo" quando é uma continuação de intervalo
-  // Ex: "Capítulo 2:24" vira "2:24". Ele ignora o resto (ex: ", 15.") deixando o intervalo perfeito.
-  finalTxt = finalTxt.replace(/\bCap[íi]tulos?\s+(\d+:\d+)/gi, "$1");
-
-
-  const normSpaces = (s) => s.replace(/\s+/g, " ").trim();
-  const normalizeOrdinalPrefix = (s) =>
-    s
-      .replace(/\bPrimeir[ao]\b/gi, "1")
-      .replace(/\bSegund[ao]\b/gi, "2")
-      .replace(/\bTerceir[ao]\b/gi, "3");
-
-  const juntarDigitosSeparados = (s) => s.replace(/(\d)\s+(?=\d)/g, "$1");
-  const limparEspacosPontuacao = (s) =>
-    s
-      .replace(/\s+([,.;:!?])/g, "$1")
-      .replace(/\(\s+/g, "(")
-      .replace(/\s+\)/g, ")")
-      .replace(/\s{2,}/g, " ")
-      .trim();
-
-  const abreviarLivroNome = (livroCru) => {
-    const n = normSpaces(normalizeOrdinalPrefix(livroCru));
-    return ABREV_BIBLIA[n] || n;
-  };
-
-  const formatarVersosPorExtenso = (t) => {
-    t = t.replace(/\b(\d+)\s+versículos?\s+(\d+)\s+a\s+(\d+)\b/gi, "$1:$2-$3");
-    t = t.replace(/\b(\d+)\s+versículos?\s+(\d+)\b/gi, "$1:$2");
-    t = t.replace(/\b(\d+):(\d+)\s+a\s+(\d+):(\d+)\b/gi, "$1:$2-$3:$4");
-    return t;
-  };
-
-  const ajustarListaComA = (t) =>
-    t.replace(/(\d+:\d+(?:,\d+)+)\s+a\s+(\d+)\b/g, (m, lista, fim) => {
-      const parts = lista.split(":");
-      if (parts.length !== 2) return m;
-      const cap = parts[0];
-      const vs = parts[1].split(",").map((x) => x.trim()).filter(Boolean);
-      if (!vs.length) return m;
-      const last = vs[vs.length - 1];
-      return `${cap}:${vs.slice(0, -1).join(",")},${last}-${parseInt(fim, 10)}`;
-    });
-
-  const padronizarVirgulasEmRefs = (t) => {
-    t = t.replace(/\b(\d+:\d+(?:\s*,\s*\d+)+)(?!\s*:\d)/g, (m, lista) => lista.replace(/\s*,\s*/g, ", "));
-    t = t.replace(/\b(\d+:\d+(?:\s*,\s*\d+)*-\d+)(?!\s*:\d)/g, (m, r) => r.replace(/\s*,\s*/g, ", "));
-    t = t.replace(/\b(\d+:\d+-\d+:\d+)(?!\s*:\d)/g, (m, r) => r.replace(/\s*,\s*/g, ", "));
-    return t;
-  };
-
-  const abreviarReferenciasNoTrecho = (trecho) => {
-    let t = ` ${trecho} `;
-    t = juntarDigitosSeparados(t);
-    t = normalizeOrdinalPrefix(t);
-    t = formatarVersosPorExtenso(t);
-    t = ajustarListaComA(t);
-
-    t = t.replace(
-      /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+(\d+)\s+vers[íi]culo\s+(\d+)/gi,
-      (_, livro, cap, v) => `${abreviarLivroNome(livro)} ${parseInt(cap, 10)}:${parseInt(v, 10)}`
-    );
-
-    t = t.replace(
-      /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+(\d+)\s+vers[íi]culos?\s+(\d+)\s+a\s+(\d+)/gi,
-      (_, livro, cap, v1, v2) =>
-        `${abreviarLivroNome(livro)} ${parseInt(cap, 10)}:${parseInt(v1, 10)}-${parseInt(v2, 10)}`
-    );
-
-    t = t.replace(
-      /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+(\d+)\s+vers[íi]culos?\s+(\d+(?:\s*,\s*\d+)*)/gi,
-      (_, livro, cap, lista) => `${abreviarLivroNome(livro)} ${parseInt(cap, 10)}:${lista.replace(/\s+/g, "")}`
-    );
-
-    t = t.replace(
-      /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+(\d+)\s*:\s*(\d+(?:\s*,\s*\d+)*)\s+a\s*(\d+)/gi,
-      (_, livro, cap, lista, fim) => {
-        const L = abreviarLivroNome(livro);
-        const c = parseInt(cap, 10);
-        const vs = lista.replace(/\s+/g, "").split(",").filter(Boolean);
-        if (!vs.length) return `${L} ${c}:${parseInt(fim, 10)}`;
-        const last = vs[vs.length - 1];
-        return `${L} ${c}:${vs.slice(0, -1).join(",")},${last}-${parseInt(fim, 10)}`;
-      }
-    );
-
-    t = t.replace(
-      /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+(\d+)\s*:\s*(\d+(?:\s*,\s*\d+)*)/gi,
-      (_, livro, cap, lista) => `${abreviarLivroNome(livro)} ${parseInt(cap, 10)}:${lista.replace(/\s+/g, "")}`
-    );
-
-    t = t.replace(
-      /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+(\d+)(?!\s*:\s*\d)/gi,
-      (_, livro, cap) => `${abreviarLivroNome(livro)} ${parseInt(cap, 10)}`
-    );
-
-    const refRegex =
-      /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+(\d+:\d+(?:[-–]\d+)?(?:,\s*\d+)*)/g;
-
-    t = t.replace(refRegex, (m, livro, ref) => `${abreviarLivroNome(livro)} ${ref.replace(/\s+/g, "")}`);
-
-    t = padronizarVirgulasEmRefs(t);
-
-    return limparEspacosPontuacao(normSpaces(t));
-  };
-
-  const aplicarAbreviacaoSoNosParenteses = (txt) =>
-    txt.replace(/\(([^\n()]*)\)/g, (m, dentro) => `(${abreviarReferenciasNoTrecho(dentro)})`);
-
-  const aplicarAbreviacaoAposTravessao = (txt) =>
-    txt.replace(/—\s*([^\n.]+)\./g, (m, trecho) => `— ${abreviarReferenciasNoTrecho(trecho)}.`);
-
-  const aplicarAbreviacaoGlobalQuandoTiverCap = (txt) =>
-    txt.replace(
-      /((?:[1-3]\s+)?[A-Za-zÀ-ÿçÇ]+(?:\s+de\s+[A-Za-zÀ-ÿçÇ]+)*)\s+cap[íi]tulo\s+\d+[^\n]*/gi,
-      (m) => abreviarReferenciasNoTrecho(m)
-    );
-
-  finalTxt = aplicarAbreviacaoSoNosParenteses(finalTxt);
-  finalTxt = aplicarAbreviacaoAposTravessao(finalTxt);
-  finalTxt = aplicarAbreviacaoGlobalQuandoTiverCap(finalTxt);
-
-  finalTxt = finalTxt.replace(/\b(\d+:\d+(?:\s*,\s*\d+)+)(?!\s*:\d)/g, (m) => m.replace(/\s*,\s*/g, ", "));
-  finalTxt = finalTxt.replace(/\b(\d+:\d+(?:\s*,\s*\d+)*-\d+)(?!\s*:\d)/g, (m) => m.replace(/\s*,\s*/g, ", "));
-}
+    // =====================================================================================
     // >>>PROCESSADOR_3_BIBLIA_FIM<<<
+    // ======================================
 
     // COLE O PROCESSADOR 4 (TAGS) AQUI
     // >>>PROCESSADOR_4_TAGS_INICIO<<<
