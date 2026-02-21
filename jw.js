@@ -220,9 +220,25 @@ export default {
       }
     }
 
-    // COLE O PROCESSADOR 3 (BÍBLIA) AQUI
-    // >>>PROCESSADOR_3_BIBLIA_INICIO<<<
+// >>>PROCESSADOR_3_BIBLIA_INICIO<<<
 {
+  // NOVA REGRA 1: Padronizar livros numerados no texto inteiro
+  // Evita transformar "Primeira coisa" em "1 coisa", mas garante
+  // que "Primeira Pedro" (ou "Primera", se houver erro de digitação) vire "1 Pedro" no corpo do texto.
+  const padronizarNumerosLivros = (txt) => {
+    return txt
+      .replace(/\b(?:Primei?r[ao]|1[ºª]?)\s+(Coríntios|Pedro|João|Timóteo|Tessalonicenses|Samuel|Reis|Crônicas)\b/gi, "1 $1")
+      .replace(/\b(?:Segund[ao]|2[ºª]?)\s+(Coríntios|Pedro|João|Timóteo|Tessalonicenses|Samuel|Reis|Crônicas)\b/gi, "2 $1")
+      .replace(/\b(?:Terceir[ao]|3[ºª]?)\s+(João)\b/gi, "3 $1");
+  };
+
+  finalTxt = padronizarNumerosLivros(finalTxt);
+
+  // NOVA REGRA 2: Remover a palavra "Capítulo" quando é uma continuação de intervalo
+  // Ex: "Capítulo 2:24" vira "2:24". Ele ignora o resto (ex: ", 15.") deixando o intervalo perfeito.
+  finalTxt = finalTxt.replace(/\bCap[íi]tulos?\s+(\d+:\d+)/gi, "$1");
+
+
   const normSpaces = (s) => s.replace(/\s+/g, " ").trim();
   const normalizeOrdinalPrefix = (s) =>
     s
