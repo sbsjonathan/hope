@@ -380,7 +380,6 @@ export default {
       "• "
     );
 
-  // 1) PRIMEIRO: esconder quadros (pra nota dentro de quadro NÃO ser processada)
   const quadrosEncontrados = [];
   finalTxt = finalTxt.replace(/\[Quadro\]([\s\S]*?)\[Fim do quadro\.?\]/gi, (_, conteudo) => {
     const c = conteudo.trim();
@@ -389,7 +388,6 @@ export default {
     return `\n${token}\n`;
   });
 
-  // 2) AGORA: extrair notas (somente fora de quadro)
   const notas = [];
   finalTxt = finalTxt.replace(/\[Nota\]([\s\S]*?)\[Fim da nota\.?\]/gi, (_, conteudo) => {
     let linhasNota = conteudo
@@ -402,7 +400,6 @@ export default {
     return `\n${token}\n`;
   });
 
-  // 3) imagens (continua como estava)
   const imagens = [];
   finalTxt = finalTxt.replace(
     /\[Imagem:\]\s*([\s\S]*?)Legenda:\s*([\s\S]*?)(?=\n{2,}\S|$)/gi,
@@ -433,6 +430,31 @@ export default {
 
   let idxObj = -1;
   let idxRecap = -1;
+
+  const extrairNotaQuadro = (textoDoQuadro) => {
+    let tem = false;
+
+    let t = textoDoQuadro.replace(/\[Nota\]([\s\S]*?)\[Fim da nota\.?\]/gi, (_, conteudo) => {
+      tem = true;
+
+      let c = conteudo
+        .replace(/\r/g, "")
+        .split(/\n+/)
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .join(" ");
+
+      c = c.replace(/^\*\s*/g, ""); // tira "* " do começo, se existir
+      c = c.replace(/\s{2,}/g, " ").trim();
+
+      return `\n\n<nota-quadro>${c}</nota-quadro>\n\n`;
+    });
+
+    if (!tem) return textoDoQuadro;
+
+    t = t.replace(/\n{3,}/g, "\n\n").trim();
+    return t;
+  };
 
   if (quadrosEncontrados.length > 0) {
     if (quadrosEncontrados[0].toLowerCase().includes("objetivo")) idxObj = 0;
@@ -468,12 +490,19 @@ export default {
     for (let i = 0; i < quadrosEncontrados.length; i++) {
       if (i === idxObj || i === idxRecap) continue;
       const token = `§QUADRO_RAW_${i}§`;
-      const q = quadrosEncontrados[i]
+
+      let bruto = quadrosEncontrados[i];
+
+      bruto = extrairNotaQuadro(bruto);
+
+      const q = bruto
+        .replace(/\r/g, "")
         .split(/\n+/)
         .map((l) => l.trim())
         .filter(Boolean)
         .map(bullets)
         .join("\n\n");
+
       quadrosNoMeio[token] = `<quadro>${q}</quadro>`;
     }
   }
