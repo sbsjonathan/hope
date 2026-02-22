@@ -370,8 +370,7 @@ export default {
 }
     // >>>PROCESSADOR_3_BIBLIA_FIM<<<
 
-    // COLE O PROCESSADOR 4 (TAGS) AQUI
-    // >>>PROCESSADOR_4_TAGS_INICIO<<<
+// >>>PROCESSADOR_4_TAGS_INICIO<<<
 {
   const normSpaces = (s) => s.replace(/\s+/g, " ").trim();
 
@@ -417,38 +416,62 @@ export default {
     }
   );
 
-  let quadrosEncontrados = [];
+  const quadrosEncontrados = [];
   finalTxt = finalTxt.replace(/\[Quadro\]([\s\S]*?)\[Fim do quadro\.?\]/gi, (_, conteudo) => {
-    quadrosEncontrados.push(conteudo.trim());
-    return "";
+    const c = conteudo.trim();
+    const token = `§QUADRO_RAW_${quadrosEncontrados.length}§`;
+    quadrosEncontrados.push(c);
+    return `\n${token}\n`;
   });
 
   let tagObjetivo = "";
   let tagRecap = "";
+  const quadrosNoMeio = {};
+
+  let idxObj = -1;
+  let idxRecap = -1;
 
   if (quadrosEncontrados.length > 0) {
-    if (quadrosEncontrados[0].toLowerCase().includes("objetivo")) {
-      let conteudo = quadrosEncontrados[0].replace(/\n{2,}/g, " ").trim();
+    if (quadrosEncontrados[0].toLowerCase().includes("objetivo")) idxObj = 0;
+    idxRecap = quadrosEncontrados.length - 1;
+
+    if (idxObj >= 0) {
+      let conteudo = quadrosEncontrados[idxObj].replace(/\n{2,}/g, " ").trim();
       conteudo = conteudo.replace(/^Objetivo\s+/i, "");
       tagObjetivo = `<objetivo>Objetivo\n${normSpaces(conteudo)}</objetivo>`;
+      finalTxt = finalTxt.replace(new RegExp(`\\s*§QUADRO_RAW_${idxObj}§\\s*`, "g"), "\n");
+    }
 
-      if (quadrosEncontrados.length > 1) {
-        let conteudoRecap = quadrosEncontrados[quadrosEncontrados.length - 1];
-        let linhas = conteudoRecap
-          .split(/\n+/)
-          .map((l) => l.trim())
-          .filter(Boolean)
-          .map(bullets);
-        tagRecap = `<recap>${linhas.join("\n\n")}</recap>`;
-      }
-    } else {
-      let conteudoRecap = quadrosEncontrados[quadrosEncontrados.length - 1];
+    if (idxRecap >= 0 && idxRecap !== idxObj) {
+      let conteudoRecap = quadrosEncontrados[idxRecap];
       let linhas = conteudoRecap
         .split(/\n+/)
         .map((l) => l.trim())
         .filter(Boolean)
         .map(bullets);
       tagRecap = `<recap>${linhas.join("\n\n")}</recap>`;
+      finalTxt = finalTxt.replace(new RegExp(`\\s*§QUADRO_RAW_${idxRecap}§\\s*`, "g"), "\n");
+    } else if (idxRecap >= 0 && idxObj < 0) {
+      let conteudoRecap = quadrosEncontrados[idxRecap];
+      let linhas = conteudoRecap
+        .split(/\n+/)
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map(bullets);
+      tagRecap = `<recap>${linhas.join("\n\n")}</recap>`;
+      finalTxt = finalTxt.replace(new RegExp(`\\s*§QUADRO_RAW_${idxRecap}§\\s*`, "g"), "\n");
+    }
+
+    for (let i = 0; i < quadrosEncontrados.length; i++) {
+      if (i === idxObj || i === idxRecap) continue;
+      const token = `§QUADRO_RAW_${i}§`;
+      const q = quadrosEncontrados[i]
+        .split(/\n+/)
+        .map((l) => l.trim())
+        .filter(Boolean)
+        .map(bullets)
+        .join("\n\n");
+      quadrosNoMeio[token] = `<quadro>${q}</quadro>`;
     }
   }
 
@@ -484,6 +507,13 @@ export default {
     for (let i = 0; i < limpas.length; i++) {
       let txt = limpas[i];
 
+      const mQuadro = txt.match(/^§QUADRO_RAW_(\d+)§$/);
+      if (mQuadro) {
+        const token = `§QUADRO_RAW_${mQuadro[1]}§`;
+        if (quadrosNoMeio[token]) corpoProcessado.push(quadrosNoMeio[token]);
+        continue;
+      }
+
       const mNota = txt.match(/^§NOTA(\d+)§$/);
       if (mNota) {
         const n = parseInt(mNota[1], 10);
@@ -512,7 +542,7 @@ export default {
       if (
         !tagCitacao &&
         tagTema &&
-        (txt.includes("'") || txt.includes("\u2019") || txt.includes("\u201C") || txt.includes('"')) &&
+        (txt.includes("\\'") || txt.includes("\\u2019") || txt.includes("\\u201C") || txt.includes('"')) &&
         txt.includes("—")
       ) {
         tagCitacao = `<citacao>${txt}</citacao>`;
@@ -565,7 +595,7 @@ export default {
   }
 }
 
-    // >>>PROCESSADOR_4_TAGS_FIM<<<
+// >>>PROCESSADOR_4_TAGS_FIM<<<
 
     // >>>PROCESSADOR_5_TEMA_SLUG_INICIO<<<
 {
