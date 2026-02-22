@@ -380,6 +380,16 @@ export default {
       "• "
     );
 
+  // 1) PRIMEIRO: esconder quadros (pra nota dentro de quadro NÃO ser processada)
+  const quadrosEncontrados = [];
+  finalTxt = finalTxt.replace(/\[Quadro\]([\s\S]*?)\[Fim do quadro\.?\]/gi, (_, conteudo) => {
+    const c = conteudo.trim();
+    const token = `§QUADRO_RAW_${quadrosEncontrados.length}§`;
+    quadrosEncontrados.push(c);
+    return `\n${token}\n`;
+  });
+
+  // 2) AGORA: extrair notas (somente fora de quadro)
   const notas = [];
   finalTxt = finalTxt.replace(/\[Nota\]([\s\S]*?)\[Fim da nota\.?\]/gi, (_, conteudo) => {
     let linhasNota = conteudo
@@ -392,6 +402,7 @@ export default {
     return `\n${token}\n`;
   });
 
+  // 3) imagens (continua como estava)
   const imagens = [];
   finalTxt = finalTxt.replace(
     /\[Imagem:\]\s*([\s\S]*?)Legenda:\s*([\s\S]*?)(?=\n{2,}\S|$)/gi,
@@ -415,14 +426,6 @@ export default {
       return `\n${token}\n`;
     }
   );
-
-  const quadrosEncontrados = [];
-  finalTxt = finalTxt.replace(/\[Quadro\]([\s\S]*?)\[Fim do quadro\.?\]/gi, (_, conteudo) => {
-    const c = conteudo.trim();
-    const token = `§QUADRO_RAW_${quadrosEncontrados.length}§`;
-    quadrosEncontrados.push(c);
-    return `\n${token}\n`;
-  });
 
   let tagObjetivo = "";
   let tagRecap = "";
@@ -594,7 +597,6 @@ export default {
     finalTxt = resultadoFinal.join("\n\n");
   }
 }
-
 // >>>PROCESSADOR_4_TAGS_FIM<<<
 
     // >>>PROCESSADOR_5_TEMA_SLUG_INICIO<<<
