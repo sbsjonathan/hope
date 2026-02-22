@@ -571,15 +571,13 @@ export default {
         continue;
       }
 
-      if (
-        !tagCitacao &&
-        tagTema &&
-        (txt.includes("\\'") || txt.includes("\\u2019") || txt.includes("\\u201C") || txt.includes('"')) &&
-        txt.includes("—")
-      ) {
-        tagCitacao = `<citacao>${txt}</citacao>`;
-        continue;
-      }
+      if (!tagCitacao && tagTema && txt.includes("—")) {
+  const temRefBiblica = /\b\d+:\d+\b/.test(txt) || /\b(?:[1-3]\s*)?[A-Za-zÀ-ÿ]{2,}\./.test(txt);
+  if (temRefBiblica) {
+    tagCitacao = `<citacao>${txt}</citacao>`;
+    continue;
+  }
+}
 
       if (/^pergunta\s+\d+/i.test(txt)) {
         let num = txt.replace(/^pergunta\s+/i, "").replace(/^(\d+)\s+(?:a|e)\s+(\d+)/, "$1-$2");
