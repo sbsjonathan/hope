@@ -46,6 +46,24 @@ export default {
       );
     };
 
+    // >>> NOVO: extrair docId e du-bgColor diretamente do HTML do article <<<
+    const extractDocId = (articleHtml) => {
+      // procura docId-2026240 dentro do class do <article ...>
+      const m = articleHtml.match(
+        /<article\b[^>]*\bclass=(["'])([\s\S]*?)\1[^>]*>/i
+      );
+      if (!m) return "";
+      const classStr = m[2] || "";
+      const doc = classStr.match(/\bdocId-(\d+)\b/i);
+      return doc ? doc[1] : "";
+    };
+
+    const extractBgColor = (articleHtml) => {
+      // procura du-bgColor--amber-600 em qualquer class do trecho do article
+      const m = articleHtml.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
+      return m ? m[1] : "";
+    };
+
     try {
       const headers = new Headers({
         "User-Agent":
@@ -88,32 +106,18 @@ export default {
 
       const onlyArticle = keepOnlyArticle(html);
 
-      // ========= EXTRAÇÃO DO docId e du-bgColor =========
-      // docId vem no class do <article> tipo: docId-2026240
-      const docIdMatch = onlyArticle.match(/\bdocId-(\d+)\b/i);
-      const docId = docIdMatch ? docIdMatch[1] : "";
-
-      // bgColor vem em alguma class tipo: du-bgColor--amber-600
-      const bgMatch = onlyArticle.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
-      const bgColor = bgMatch ? bgMatch[1] : "";
-
-      // Prefixo desejado (com “espaço branco” = linha em branco)
-      const prefix = `${docId}\n\n${bgColor}\n\n`;
-      // ================================================
+      // >>> NOVO: pegar os dois valores ANTES de limpar <<<
+      const docId = extractDocId(onlyArticle);
+      const bgColor = extractBgColor(onlyArticle);
 
       const rewriter = new HTMLRewriter()
-        // remove o “lixo” que você já removia
         .on(".gen-field", { element: (el) => el.remove() })
         .on(".jsPinnedAudioPlayer", { element: (el) => el.remove() })
         .on(".jsAudioPlayer", { element: (el) => el.remove() })
         .on(".jsAudioFormat", { element: (el) => el.remove() })
         .on(".jsVideoPoster", { element: (el) => el.remove() })
         .on(".articleFooterLinks", { element: (el) => el.remove() })
-        .on(".pageNum", { element: (el) => el.remove() })
-
-        // remove especificamente a barra do topo (a que tem du-bgColor--...)
-        // seu exemplo é <div id="tt2" class="... du-bgColor--amber-600 ...">
-        .on("#tt2", { element: (el) => el.remove() });
+        .on(".pageNum", { element: (el) => el.remove() });
 
       const cleaned = await rewriter
         .transform(
@@ -125,7 +129,9 @@ export default {
 
       const withPerguntas = processPerguntas(cleaned);
 
-      // Coloca o prefixo na frente do restante
+      // >>> NOVO: prefixo com as duas infos, com linha em branco entre elas <<<
+      const prefix = `${docId}\n\n${bgColor}\n\n`;
+
       const finalHtml = normalizeBlankLines(prefix + withPerguntas);
 
       return new Response(finalHtml, {
