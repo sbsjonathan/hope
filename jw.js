@@ -1,5 +1,5 @@
 export default {
-  async fetch(request) {
+  async fetch(request, env, ctx) {
     const targetUrl =
       "https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-janeiro-2026/Continue-cuidando-da-sua-necessidade-espiritual/";
 
@@ -13,25 +13,23 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    const cleanHtmlBase = (html) => {
-      let out = html.replace(/\r\n/g, "\n");
-
-      const m = out.match(/<article\b[^>]*\bid=(?:"|')article(?:"|')[^>]*>/i);
-      if (m && typeof m.index === "number") out = out.slice(m.index);
-
-      out = out.replace(
-        /Gostaria\s+de\s+ler\s+este\s+artigo\s+em[\s\S]*?(?=(?:\b\d{1,2}\s*[-–]\s*\d{1,2}\s+DE\s+[A-ZÇÃÕÁÉÍÓÚ]+\s+DE\s+\d{4}\b|<h1\b|<main\b|<article\b))/i,
-        ""
-      );
-
-      return out;
-    };
-
     const normalizeBlankLines = (html) => {
       let out = html.replace(/\r\n/g, "\n");
       out = out.replace(/[ \t]+\n/g, "\n");
       out = out.replace(/\n{3,}/g, "\n\n");
-      return out;
+      return out.trim() + "\n";
+    };
+
+    const keepOnlyArticle = (html) => {
+      const src = html.replace(/\r\n/g, "\n");
+      const start = src.search(/<article\b[^>]*\bid=(?:"|')article(?:"|')[^>]*>/i);
+      if (start < 0) return src;
+
+      const end = src.search(/<\/article\s*>/i);
+      if (end < 0 || end <= start) return src.slice(start);
+
+      const article = src.slice(start, end) + "</article>";
+      return article;
     };
 
     try {
@@ -53,19 +51,19 @@ export default {
         "Upgrade-Insecure-Requests": "1",
       });
 
-      const upstream = await fetch(targetUrl, {
+      const response = await fetch(targetUrl, {
         method: "GET",
-        headers,
+        headers: headers,
         redirect: "follow",
       });
 
-      const html = await upstream.text();
+      const html = await response.text();
 
-      if (!upstream.ok) {
+      if (!response.ok) {
         return new Response(
-          `Erro do site alvo: Status ${upstream.status}\n\nCódigo-fonte do erro:\n${html}`,
+          `Erro do site alvo: Status ${response.status}\n\nCódigo-fonte do erro:\n${html}`,
           {
-            status: upstream.status,
+            status: response.status,
             headers: {
               ...corsHeaders,
               "Content-Type": "text/plain;charset=UTF-8",
@@ -74,44 +72,8 @@ export default {
         );
       }
 
-      const baseCleaned = cleanHtmlBase(html);
-
-      const rewriter = new HTMLRewriter()
-        .on(".gen-field", { element: (el) => el.remove() })
-        .on(".jsPinnedAudioPlayer", { element: (el) => el.remove() })
-        .on(".jsAudioPlayer", { element: (el) => el.remove() })
-        .on(".jsAudioFormat", { element: (el) => el.remove() })
-        .on(".mobileNavLink", { element: (el) => el.remove() })
-        .on(".articleNavLinks", { element: (el) => el.remove() })
-        .on(".articleShareLinks", { element: (el) => el.remove() })
-        .on(".articleFooterLinks", { element: (el) => el.remove() })
-        .on("#mobileTOCNav", { element: (el) => el.remove() })
-        .on("#sidebar", { element: (el) => el.remove() })
-        .on("#sidebarTOC", { element: (el) => el.remove() })
-        .on("footer", { element: (el) => el.remove() })
-        .on("#templates", { element: (el) => el.remove() })
-        .on(".subnavItem", { element: (el) => el.remove() })
-        .on(".subNavItem", { element: (el) => el.remove() })
-        .on("#screenReaderNavLinkTop", { element: (el) => el.remove() })
-        .on("#pageConfig", { element: (el) => el.remove() })
-        .on(".jsVideoPoster", { element: (el) => el.remove() })
-        .on("#mobileNavTopBar", { element: (el) => el.remove() })
-        .on("#regionHeader", { element: (el) => el.remove() })
-        .on("#regionPrimaryNav", { element: (el) => el.remove() })
-        .on(".breadcrumbs", { element: (el) => el.remove() })
-        .on(".legal-notices-client--config", { element: (el) => el.remove() });
-
-      const transformed = rewriter.transform(
-        new Response(baseCleaned, {
-          status: 200,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "text/html;charset=UTF-8",
-          },
-        })
-      );
-
-      const finalHtml = normalizeBlankLines(await transformed.text());
+      const onlyArticle = keepOnlyArticle(html);
+      const finalHtml = normalizeBlankLines(onlyArticle);
 
       return new Response(finalHtml, {
         status: 200,
