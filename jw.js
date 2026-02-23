@@ -13,29 +13,30 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    const normalizeBlankLines = (html) => {
-      let out = html.replace(/\r\n/g, "\n");
+    const normalizeBlankLines = (s) => {
+      let out = String(s ?? "").replace(/\r\n/g, "\n");
       out = out.replace(/[ \t]+\n/g, "\n");
       out = out.replace(/\n{3,}/g, "\n\n");
       return out.trim() + "\n";
     };
 
     const keepOnlyArticle = (html) => {
-      const src = html.replace(/\r\n/g, "\n");
+      const src = String(html ?? "").replace(/\r\n/g, "\n");
       const start = src.search(/<article\b[^>]*\bid=(?:"|')article(?:"|')[^>]*>/i);
       if (start < 0) return src;
 
-      const endMatch = src.slice(start).match(/<\/article\s*>/i);
-      if (!endMatch) return src.slice(start);
+      const tail = src.slice(start);
+      const mEnd = tail.match(/<\/article\s*>/i);
+      if (!mEnd || typeof mEnd.index !== "number") return tail;
 
-      const end = start + endMatch.index;
+      const end = start + mEnd.index;
       return src.slice(start, end) + "</article>";
     };
 
-    const stripTags = (s) => s.replace(/<[^>]+>/g, "");
+    const stripTags = (s) => String(s ?? "").replace(/<[^>]+>/g, "");
 
     const processPerguntas = (html) => {
-      return html.replace(
+      return String(html ?? "").replace(
         /<p\b[^>]*\bclass=(["'])[^"']*\bqu\b[^"']*\1[^>]*>\s*<strong[^>]*>\s*([\s\S]*?)\s*<\/strong>\s*([\s\S]*?)<\/p>/gi,
         (_m, _q, strongPart, rest) => {
           const num = stripTags(strongPart).replace(/\s+/g, " ").trim();
@@ -44,6 +45,23 @@ export default {
           return `\n\n<pergunta>${conteudo}</pergunta>\n\n`;
         }
       );
+    };
+
+    const extractMetaAndStripJunkTop = (articleHtml) => {
+      const src = String(articleHtml ?? "");
+
+      const docIdMatch = src.match(/\bdocId-(\d+)\b/i);
+      const docId = docIdMatch ? docIdMatch[1] : "";
+
+      const colorMatch = src.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
+      const color = colorMatch ? colorMatch[1] : "";
+
+      let out = src;
+
+      out = out.replace(/<header\b[^>]*>[\s\S]*?<\/header\s*>/i, "");
+
+      const prefix = `${docId}\n\n${color}\n\n`;
+      return prefix + out;
     };
 
     try {
@@ -106,7 +124,8 @@ export default {
         .text();
 
       const withPerguntas = processPerguntas(cleaned);
-      const finalHtml = normalizeBlankLines(withPerguntas);
+      const withMeta = extractMetaAndStripJunkTop(withPerguntas);
+      const finalHtml = normalizeBlankLines(withMeta);
 
       return new Response(finalHtml, {
         status: 200,
