@@ -255,76 +255,100 @@ export default {
     };
     // <<<PROCESSADOR_6_FIM<<<
 
-    // >>>PROCESSADOR_7_INICIO<<<
-    const PROCESSADOR_7 = (html) => {
-      let out = html.replace(/\r\n/g, "\n");
+// >>>PROCESSADOR_7_INICIO<<<
+const PROCESSADOR_7 = (html) => {
+  let out = html.replace(/\r\n/g, "\n");
 
-      const normalizeTitle = (s) =>
-        (s || "")
+  const stripTagsPreserveBasic = (s) => {
+    let t = s;
+    t = t.replace(/<\s*em\s*>/gi, "__EMO__");
+    t = t.replace(/<\s*\/\s*em\s*>/gi, "__EMC__");
+    t = t.replace(/<\s*strong\s*>/gi, "__STO__");
+    t = t.replace(/<\s*\/\s*strong\s*>/gi, "__STC__");
+    t = t.replace(/<\s*bbl\s*>/gi, "__BBLO__");
+    t = t.replace(/<\s*\/\s*bbl\s*>/gi, "__BBLC__");
+    t = t.replace(/<[^>]+>/g, "");
+    t = t
+      .replace(/__EMO__/g, "<em>")
+      .replace(/__EMC__/g, "</em>")
+      .replace(/__STO__/g, "<strong>")
+      .replace(/__STC__/g, "</strong>")
+      .replace(/__BBLO__/g, "<bbl>")
+      .replace(/__BBLC__/g, "</bbl>");
+    return t;
+  };
+
+  // =========================
+  // RECAP (ASIDE INTEIRO)
+  // =========================
+  out = out.replace(
+    /<aside>([\s\S]*?)<\/aside>/i,
+    (_m, asideInner) => {
+      const tituloMatch = asideInner.match(/<h2>([\s\S]*?)<\/h2>/i);
+      const ulMatch = asideInner.match(/<ul>([\s\S]*?)<\/ul>/i);
+
+      if (!tituloMatch || !ulMatch) return _m;
+
+      const titulo = stripTagsPreserveBasic(tituloMatch[1])
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const items = [];
+      ulMatch[1].replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_mm, liInner) => {
+        const txt = stripTagsPreserveBasic(liInner)
           .replace(/\s+/g, " ")
-          .trim()
-          .replace(/\s*:\s*$/, ":");
+          .trim();
+        if (txt) items.push(txt);
+        return "";
+      });
 
-      const stripTagsPreserveEmStrongBbl = (s) => {
-        let t = s;
-        t = t.replace(/<\s*em\s*>/gi, "__EMO__");
-        t = t.replace(/<\s*\/\s*em\s*>/gi, "__EMC__");
-        t = t.replace(/<\s*strong\s*>/gi, "__STO__");
-        t = t.replace(/<\s*\/\s*strong\s*>/gi, "__STC__");
-        t = t.replace(/<\s*bbl\s*>/gi, "__BBLO__");
-        t = t.replace(/<\s*\/\s*bbl\s*>/gi, "__BBLC__");
-        t = t.replace(/<[^>]+>/g, "");
-        t = t
-          .replace(/__EMO__/g, "<em>")
-          .replace(/__EMC__/g, "</em>")
-          .replace(/__STO__/g, "<strong>")
-          .replace(/__STC__/g, "</strong>")
-          .replace(/__BBLO__/g, "<bbl>")
-          .replace(/__BBLC__/g, "</bbl>");
-        return t;
-      };
+      let bullets = "";
+      for (const it of items) bullets += `\n\n• ${it}`;
 
-      out = out.replace(
-        /<subtitulo>([\s\S]*?)<\/subtitulo>\s*<\/div>\s*<div\b[^>]*\bclass=(["'])[^"']*\bboxContent\b[^"']*\2[^>]*>\s*<ul>([\s\S]*?)<\/ul>[\s\S]*?<\/aside>\s*<\/div>/i,
-        (_m, subInner, _q, ulInner) => {
-          const title = normalizeTitle(stripTags(subInner));
+      return `<recap>${titulo}${bullets}</recap>\n\n`;
+    }
+  );
 
-          const items = [];
-          ulInner.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_mm, liInner) => {
-            const txt = stripTags(liInner).replace(/\s+/g, " ").trim();
-            if (txt) items.push(txt);
-            return "";
-          });
+  // =========================
+  // CANTICO FINAL
+  // =========================
+  out = out.replace(
+    /<div\b[^>]*\bid=(["'])tt39\1[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
+    (_m, _id, inner) => {
+      const txt = stripTagsPreserveBasic(inner)
+        .replace(/\s+/g, " ")
+        .trim();
+      return `<cantico>${txt}</cantico>\n\n`;
+    }
+  );
 
-          let bullets = "";
-          for (const it of items) bullets += `\n\n• ${it}`;
-          return `<recap>${title}${bullets}</recap>\n\n`;
-        }
-      );
+  // =========================
+  // NOTA
+  // =========================
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>\s*<\/div>/i,
+    (_m, _q, inner) => {
+      let txt = stripTagsPreserveBasic(inner)
+        .replace(/\s+/g, " ")
+        .trim();
 
-      out = out.replace(
-        /<div\b[^>]*\bid=(?:"|')tt39(?:"|')[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\1[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
-        (_m, _q, inner) => {
-          const txt = stripTags(inner).replace(/\s+/g, " ").trim();
-          return `<cantico>${txt}</cantico>\n\n`;
-        }
-      );
+      txt = txt.replace(/^[a-z]\s+/i, "* ");
 
-      out = out.replace(
-        /<div\b[^>]*\bclass=(["'])[^"']*\bgroupFootnote\b[^"']*\1[^>]*>[\s\S]*?<div\b[^>]*\bid=(?:"|')footnote\d+(?:"|')[^>]*>\s*<p\b[^>]*>([\s\S]*?)<\/p>\s*<\/div>[\s\S]*?<\/div>/i,
-        (_m, _q, inner) => {
-          let txt = stripTagsPreserveEmStrongBbl(inner).replace(/\s+/g, " ").trim();
-          txt = txt.replace(/^[a-z]\s+/i, "* ");
-          txt = txt.replace(/^\*\s+/, "* ");
-          return `<nota>${txt}</nota>\n\n`;
-        }
-      );
+      return `<nota>${txt}</nota>\n\n`;
+    }
+  );
 
-      out = out.replace(/<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/article>\s*$/i, "");
+  // =========================
+  // REMOVE LIXO FINAL
+  // =========================
+  out = out.replace(
+    /<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/article>\s*$/i,
+    ""
+  );
 
-      return out;
-    };
-    // <<<PROCESSADOR_7_FIM<<<
+  return out;
+};
+// <<<PROCESSADOR_7_FIM<<<
 
     try {
       const headers = new Headers({
