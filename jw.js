@@ -46,28 +46,26 @@ export default {
       );
     };
 
-    const injectMetaHeader = (html) => {
-      const mDoc = html.match(/\bdocId-(\d{4,})\b/i);
-      const docId = mDoc ? mDoc[1] : "";
+    const injectDocInfoHeader = (html) => {
+      const mArticle = html.match(/<article\b[^>]*\bdocId-(\d+)[^>]*>/i);
+      const docId = mArticle ? mArticle[1] : "";
 
-      const mColor = html.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
-      const bg = mColor ? mColor[1] : "";
+      const mBg = html.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
+      const bg = mBg ? mBg[1] : "";
 
-      const meta = `${docId}\n\n${bg}\n\n`;
+      const headerText = `${docId}\n\n${bg}\n\n`;
 
       let out = html;
 
       out = out.replace(
-        /<article\b[^>]*\bid=(?:"|')article(?:"|')[^>]*>\s*/i,
-        (m) => m + meta
+        /<article\b[^>]*>\s*/i,
+        (m) => m + "\n" + headerText
       );
 
       out = out.replace(
-        /<div\b[^>]*\bclass=(["'])textSizeIncrement\1[^>]*>[\s\S]*?<header\b[^>]*>[\s\S]*?<div\b[^>]*\bid=(["'])tt2\2[\s\S]*?>/i,
+        /<div\b[^>]*\bclass=(["'])[^"']*\btextSizeIncrement\b[^"']*\1[^>]*>\s*[\s\S]*?<div\b[^>]*\bclass=(["'])[^"']*\bdu-bgColor--[a-z0-9-]+\b[^"']*\2[^>]*>\s*/i,
         ""
       );
-
-      out = out.replace(/<\/header>\s*/i, "");
 
       return out;
     };
@@ -132,8 +130,8 @@ export default {
         .text();
 
       const withPerguntas = processPerguntas(cleaned);
-      const withMeta = injectMetaHeader(withPerguntas);
-      const finalHtml = normalizeBlankLines(withMeta);
+      const withDocInfo = injectDocInfoHeader(withPerguntas);
+      const finalHtml = normalizeBlankLines(withDocInfo);
 
       return new Response(finalHtml, {
         status: 200,
