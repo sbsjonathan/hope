@@ -46,31 +46,28 @@ export default {
       );
     };
 
-    const extractDocIdAndColorAndRemoveHeaderJunk = (articleHtml) => {
-      const docIdMatch = articleHtml.match(/\bdocId-(\d+)\b/i);
-      const docId = docIdMatch ? docIdMatch[1] : "";
+    const injectMetaHeader = (html) => {
+      const mDoc = html.match(/\bdocId-(\d{4,})\b/i);
+      const docId = mDoc ? mDoc[1] : "";
 
-      const colorMatch = articleHtml.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
-      const color = colorMatch ? colorMatch[1] : "";
+      const mColor = html.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
+      const bg = mColor ? mColor[1] : "";
 
-      let out = articleHtml;
+      const meta = `${docId}\n\n${bg}\n\n`;
 
-      out = out.replace(
-        /<article\b([\s\S]*?)>/i,
-        (m) => {
-          const prefix = `${docId}\n\n${color}\n\n`;
-          return `<article>${prefix}`;
-        }
-      );
-
-      out = out.replace(/<article\b[^>]*>/i, `<article>\n${docId}\n\n${color}\n\n`);
-
-      out = out.replace(/^[\s\S]*?<article>\s*(?:\d+\s*)?\s*(?:[a-z0-9-]+\s*)?/i, `<article>\n${docId}\n\n${color}\n\n`);
+      let out = html;
 
       out = out.replace(
-        /<article>\s*[\s\S]*?(?=<h1\b|<div\b[^>]*\bclass=(["'])[^"']*\bbodyTxt\b[^"']*\1|<div\b[^>]*\bclass=(["'])[^"']*\bcontentBody\b[^"']*\2|<p\b|<header\b|<figure\b)/i,
-        `<article>\n${docId}\n\n${color}\n\n`
+        /<article\b[^>]*\bid=(?:"|')article(?:"|')[^>]*>\s*/i,
+        (m) => m + meta
       );
+
+      out = out.replace(
+        /<div\b[^>]*\bclass=(["'])textSizeIncrement\1[^>]*>[\s\S]*?<header\b[^>]*>[\s\S]*?<div\b[^>]*\bid=(["'])tt2\2[\s\S]*?>/i,
+        ""
+      );
+
+      out = out.replace(/<\/header>\s*/i, "");
 
       return out;
     };
@@ -135,8 +132,8 @@ export default {
         .text();
 
       const withPerguntas = processPerguntas(cleaned);
-      const withTopReduced = extractDocIdAndColorAndRemoveHeaderJunk(withPerguntas);
-      const finalHtml = normalizeBlankLines(withTopReduced);
+      const withMeta = injectMetaHeader(withPerguntas);
+      const finalHtml = normalizeBlankLines(withMeta);
 
       return new Response(finalHtml, {
         status: 200,
