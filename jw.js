@@ -43,6 +43,51 @@ export default {
         ""
       );
 
+      out = out.replace(
+        /<script\b[^>]*\bsrc=(?:"|')\/pt\/i18n\.js[^"']*(?:"|')[^>]*>\s*<\/script>\s*/gi,
+        ""
+      );
+
+      out = out.replace(
+        /<link\b[^>]*\bhref=(?:"|')https:\/\/b\.jw-cdn\.org\/code\/media-player\/[^"']*\/css\/media-player\.css(?:"|')[^>]*>\s*/gi,
+        ""
+      );
+
+      out = out.replace(
+        /<link\b[^>]*\bhref=(?:"|')https:\/\/assetsnffrgf-a\.akamaihd\.net\/assets\/ct\/[^"']*\/collector\.css(?:"|')[^>]*>\s*/gi,
+        ""
+      );
+
+      out = out.replace(
+        /<script\b[^>]*\bsrc=(?:"|')https:\/\/b\.jw-cdn\.org\/code\/media-player\/[^"']*\/js\/media-player\.min\.js[^"']*(?:"|')[^>]*>\s*<\/script>\s*/gi,
+        ""
+      );
+
+      out = out.replace(
+        /<script\b[^>]*\bsrc=(?:"|')https:\/\/www\.gstatic\.com\/cv\/js\/sender\/v1\/cast_sender\.js[^"']*(?:"|')[^>]*>\s*<\/script>\s*/gi,
+        ""
+      );
+
+      out = out.replace(
+        /<script\b[^>]*\bsrc=(?:"|')https:\/\/assetsnffrgf-a\.akamaihd\.net\/assets\/ct\/[^"']*\/thirdparty\.js(?:"|')[^>]*>\s*<\/script>\s*/gi,
+        ""
+      );
+
+      out = out.replace(
+        /<script\b[^>]*\bsrc=(?:"|')https:\/\/assetsnffrgf-a\.akamaihd\.net\/assets\/ct\/[^"']*\/legal-notices-client\.umd\.js(?:"|')[^>]*>\s*<\/script>\s*/gi,
+        ""
+      );
+
+      out = out.replace(
+        /<script\b[^>]*\bsrc=(?:"|')https:\/\/assetsnffrgf-a\.akamaihd\.net\/assets\/ct\/[^"']*\/cms\.js(?:"|')[^>]*>\s*<\/script>\s*/gi,
+        ""
+      );
+
+      out = out.replace(
+        /<script\b[^>]*\bsrc=(?:"|')https:\/\/assetsnffrgf-a\.akamaihd\.net\/assets\/ct\/[^"']*\/all-videos\.js(?:"|')[^>]*>\s*<\/script>\s*/gi,
+        ""
+      );
+
       return out;
     };
 
@@ -103,6 +148,7 @@ export default {
         .on(".mobileNavLink", { element: (el) => el.remove() })
         .on(".articleNavLinks", { element: (el) => el.remove() })
         .on(".articleShareLinks", { element: (el) => el.remove() })
+        .on(".articleFooterLinks", { element: (el) => el.remove() })
         .on("#mobileTOCNav", { element: (el) => el.remove() })
         .on("#sidebar", { element: (el) => el.remove() })
         .on("#sidebarTOC", { element: (el) => el.remove() })
@@ -116,7 +162,8 @@ export default {
         .on("#mobileNavTopBar", { element: (el) => el.remove() })
         .on("#regionHeader", { element: (el) => el.remove() })
         .on("#regionPrimaryNav", { element: (el) => el.remove() })
-        .on(".breadcrumbs", { element: (el) => el.remove() });
+        .on(".breadcrumbs", { element: (el) => el.remove() })
+        .on(".legal-notices-client--config", { element: (el) => el.remove() });
 
       const transformed = rewriter.transform(
         new Response(baseCleaned, {
