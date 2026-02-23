@@ -3,50 +3,43 @@ export default {
     const targetUrl =
       "https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-janeiro-2026/Continue-cuidando-da-sua-necessidade-espiritual/";
 
-    // 1. Cabeçalhos de CORS OBRIGATÓRIOS. Vão em todas as respostas (sucesso ou erro)
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, HEAD, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     };
 
-    // 2. Resolve o "Preflight" do navegador
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // ---- LIMPEZA (APENAS 5 e 6) ----
-    const cleanHtml_5_6 = (html) => {
+    // (O que você já limpou antes pode ficar aqui)
+    const cleanHtmlBase = (html) => {
       let out = html;
 
-      // (5) Remove blocos "Sua resposta" (gen-field com textarea)
-      // Exemplo no HTML: <div class="gen-field" ...><label> Sua resposta</label><textarea ...></textarea></div>
+      // alternates/hreflang + og:locale:alternate (idiomas no HEAD)
       out = out.replace(
-        /<div\b[^>]*class=(?:"|')[^"']*\bgen-field\b[^"']*(?:"|')[^>]*>[\s\S]*?<textarea\b[\s\S]*?<\/textarea>[\s\S]*?<\/div>/gi,
+        /<link\b[^>]*\brel=(?:"|')alternate(?:"|')[^>]*>/gi,
+        ""
+      );
+      out = out.replace(
+        /<meta\b[^>]*(?:property|name)=(?:"|')og:locale:alternate(?:"|')[^>]*>/gi,
         ""
       );
 
-      // (6) Remove player de áudio (pinned audio player)
-      // Exemplo: <div class="noJShide jsPinnedAudioPlayer ..."> ... </div>
+      // bloco gigante de idiomas "Gostaria de ler este artigo em..."
       out = out.replace(
-        /<div\b[^>]*class=(?:"|')[^"']*\bjsPinnedAudioPlayer\b[^"']*(?:"|')[^>]*>[\s\S]*?<\/div>/gi,
+        /Gostaria\s+de\s+ler\s+este\s+artigo\s+em[\s\S]*?(?=(?:\b\d{1,2}\s*[-–]\s*\d{1,2}\s+DE\s+[A-ZÇÃÕÁÉÍÓÚ]+\s+DE\s+\d{4}\b|<h1\b|<main\b|<article\b))/i,
         ""
       );
 
-      // (6b) Remove também o player "normal" caso apareça como jsAudioPlayer
-      out = out.replace(
-        /<div\b[^>]*class=(?:"|')[^"']*\bjsAudioPlayer\b[^"']*(?:"|')[^>]*>[\s\S]*?<\/div>/gi,
-        ""
-      );
-
-      // (opcional leve) evita buracos enormes no HTML
+      // só pra não ficar um “buraco” enorme
       out = out.replace(/\n{3,}/g, "\n\n");
 
       return out;
     };
 
     try {
-      // 3. Cabeçalhos furtivos para enganar o WAF (Akamai) do JW.org
       const headers = new Headers({
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
@@ -65,22 +58,19 @@ export default {
         "Upgrade-Insecure-Requests": "1",
       });
 
-      // 4. Dispara a requisição. 'redirect: "follow"' garante que redirecionamentos de URL sejam seguidos
-      const response = await fetch(targetUrl, {
+      const upstream = await fetch(targetUrl, {
         method: "GET",
-        headers: headers,
+        headers,
         redirect: "follow",
       });
 
-      const html = await response.text();
+      const html = await upstream.text();
 
-      // 5. Se o anti-bot ainda assim barrar, retornamos o erro PRO FRONT-END mas COM O CORS LIBERADO!
-      // Assim você vai ver no `console.log` o porquê foi barrado.
-      if (!response.ok) {
+      if (!upstream.ok) {
         return new Response(
-          `Erro do site alvo: Status ${response.status}\n\nCódigo-fonte do erro:\n${html}`,
+          `Erro do site alvo: Status ${upstream.status}\n\nCódigo-fonte do erro:\n${html}`,
           {
-            status: response.status,
+            status: upstream.status,
             headers: {
               ...corsHeaders,
               "Content-Type": "text/plain;charset=UTF-8",
@@ -89,18 +79,44 @@ export default {
         );
       }
 
-      const cleaned = cleanHtml_5_6(html);
+      // 1) mantém tua limpeza anterior
+      const baseCleaned = cleanHtmlBase(html);
 
-      // 6. Sucesso! Retorna o HTML com CORS
-      return new Response(cleaned, {
+      // 2) agora: filtra SÓ (5) e (6) com HTMLRewriter (seguro, sem quebrar IDs)
+      const rewriter = new HTMLRewriter()
+        // (5) remove "Sua resposta" / textareas
+        .on(".gen-field", {
+          element(el) {
+            el.remove();
+          },
+        })
+        // (6) remove player fixo e UI de áudio
+        .on(".jsPinnedAudioPlayer", {
+          element(el) {
+            el.remove();
+          },
+        })
+        .on(".jsAudioPlayer", {
+          element(el) {
+            el.remove();
+          },
+        })
+        .on(".jsAudioFormat", {
+          element(el) {
+            el.remove();
+          },
+        });
+
+      const response = new Response(baseCleaned, {
         status: 200,
         headers: {
           ...corsHeaders,
           "Content-Type": "text/html;charset=UTF-8",
         },
       });
+
+      return rewriter.transform(response);
     } catch (error) {
-      // 7. Erro interno da nuvem, também retorna o erro com CORS
       return new Response(`Erro na infraestrutura do Worker: ${error.message}`, {
         status: 500,
         headers: {
