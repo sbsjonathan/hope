@@ -139,6 +139,32 @@ export default {
     };
     // <<<PROCESSADOR_3_FIM<<<
 
+    // >>>PROCESSADOR_4_INICIO<<<
+    const PROCESSADOR_4 = (html) => {
+      let out = html.replace(/\r\n/g, "\n");
+
+      out = out.replace(
+        /<a\b[^>]*\bclass=(["'])[^"']*\bjsBibleLink\b[^"']*\1[^>]*>([\s\S]*?)<\/a>/gi,
+        (_m, _q, inner) => {
+          const txt = stripTags(inner).replace(/\s+/g, " ").trim();
+          return `<bbl>${txt}</bbl>`;
+        }
+      );
+
+      out = out.replace(
+        /<p\b[^>]*>\s*<span\b[^>]*\bclass=(["'])[^"']*\bparNum\b[^"']*\1[^>]*\bdata-pnum=(["'])(\d+)\2[^>]*>[\s\S]*?<\/span>\s*([\s\S]*?)<\/p>/gi,
+        (_m, _q1, _q2, num, restHtml) => {
+          let rest = restHtml || "";
+          rest = rest.replace(/^\s+/, "").replace(/^\u00a0+/, "");
+          rest = rest.replace(/\s+$/, "");
+          return `<paragrafo>${num} ${rest}</paragrafo>`;
+        }
+      );
+
+      return out;
+    };
+    // <<<PROCESSADOR_4_FIM<<<
+
     try {
       const headers = new Headers({
         "User-Agent":
@@ -200,7 +226,8 @@ export default {
 
       const afterP2 = PROCESSADOR_2(cleaned);
       const afterP3 = PROCESSADOR_3(afterP2);
-      const withPerguntas = processPerguntas(afterP3);
+      const afterP4 = PROCESSADOR_4(afterP3);
+      const withPerguntas = processPerguntas(afterP4);
       const finalHtml = normalizeBlankLines(withPerguntas);
 
       return new Response(finalHtml, {
