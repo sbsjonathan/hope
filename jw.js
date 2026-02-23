@@ -13,8 +13,8 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    const normalizeBlankLines = (html) => {
-      let out = html.replace(/\r\n/g, "\n");
+    const normalizeBlankLines = (s) => {
+      let out = s.replace(/\r\n/g, "\n");
       out = out.replace(/[ \t]+\n/g, "\n");
       out = out.replace(/\n{3,}/g, "\n\n");
       return out.trim() + "\n";
@@ -46,28 +46,18 @@ export default {
       );
     };
 
-    const injectDocInfoHeader = (html) => {
-      const mArticle = html.match(/<article\b[^>]*\bdocId-(\d+)[^>]*>/i);
-      const docId = mArticle ? mArticle[1] : "";
+    const extractDocIdAndBg = (html) => {
+      const mDoc = html.match(/\bdocId-(\d+)\b/i);
+      const docId = mDoc ? mDoc[1] : "";
 
       const mBg = html.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
       const bg = mBg ? mBg[1] : "";
 
-      const headerText = `${docId}\n\n${bg}\n\n`;
+      return `${docId}\n\n${bg}\n\n`;
+    };
 
-      let out = html;
-
-      out = out.replace(
-        /<article\b[^>]*>\s*/i,
-        (m) => m + "\n" + headerText
-      );
-
-      out = out.replace(
-        /<div\b[^>]*\bclass=(["'])[^"']*\btextSizeIncrement\b[^"']*\1[^>]*>\s*[\s\S]*?<div\b[^>]*\bclass=(["'])[^"']*\bdu-bgColor--[a-z0-9-]+\b[^"']*\2[^>]*>\s*/i,
-        ""
-      );
-
-      return out;
+    const removeArticleOpenTagOnly = (html) => {
+      return html.replace(/^\s*<article\b[^>]*>\s*/i, "");
     };
 
     try {
@@ -129,11 +119,14 @@ export default {
         )
         .text();
 
-      const withPerguntas = processPerguntas(cleaned);
-      const withDocInfo = injectDocInfoHeader(withPerguntas);
-      const finalHtml = normalizeBlankLines(withDocInfo);
+      const header = extractDocIdAndBg(cleaned);
 
-      return new Response(finalHtml, {
+      let body = removeArticleOpenTagOnly(cleaned);
+      body = processPerguntas(body);
+
+      const finalText = normalizeBlankLines(header + body);
+
+      return new Response(finalText, {
         status: 200,
         headers: {
           ...corsHeaders,
