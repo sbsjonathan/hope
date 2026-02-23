@@ -14,77 +14,13 @@ export default {
     }
 
     const cleanHtmlBase = (html) => {
-      let out = html;
+      let out = html.replace(/\r\n/g, "\n");
 
-      out = out.replace(/\r\n/g, "\n");
-
-      out = out.replace(
-        /<link\b[^>]*\brel=(?:"|')alternate(?:"|')[^>]*>\s*/gi,
-        ""
-      );
-
-      out = out.replace(
-        /<meta\b[^>]*(?:property|name)=(?:"|')og:locale:alternate(?:"|')[^>]*>\s*/gi,
-        ""
-      );
+      const m = out.match(/<article\b[^>]*\bid=(?:"|')article(?:"|')[^>]*>/i);
+      if (m && typeof m.index === "number") out = out.slice(m.index);
 
       out = out.replace(
         /Gostaria\s+de\s+ler\s+este\s+artigo\s+em[\s\S]*?(?=(?:\b\d{1,2}\s*[-–]\s*\d{1,2}\s+DE\s+[A-ZÇÃÕÁÉÍÓÚ]+\s+DE\s+\d{4}\b|<h1\b|<main\b|<article\b))/i,
-        ""
-      );
-
-      out = out.replace(
-        /<script\b[^>]*>\s*document\.body\.className\s*=\s*document\.body\.className\.replace\([\s\S]*?\);\s*<\/script>\s*/gi,
-        ""
-      );
-
-      out = out.replace(
-        /<script\b[^>]*>\s*var\s+theme;\s*[\s\S]*?<\/script>\s*/gi,
-        ""
-      );
-
-      out = out.replace(
-        /<script\b[^>]*\bsrc=(?:"|')\/pt\/i18n\.js[^"']*(?:"|')[^>]*>\s*<\/script>\s*/gi,
-        ""
-      );
-
-      out = out.replace(
-        /<link\b[^>]*\bhref=(?:"|')https:\/\/b\.jw-cdn\.org\/code\/media-player\/[^"']*\/css\/media-player\.css(?:"|')[^>]*>\s*/gi,
-        ""
-      );
-
-      out = out.replace(
-        /<link\b[^>]*\bhref=(?:"|')https:\/\/assetsnffrgf-a\.akamaihd\.net\/assets\/ct\/[^"']*\/collector\.css(?:"|')[^>]*>\s*/gi,
-        ""
-      );
-
-      out = out.replace(
-        /<script\b[^>]*\bsrc=(?:"|')https:\/\/b\.jw-cdn\.org\/code\/media-player\/[^"']*\/js\/media-player\.min\.js[^"']*(?:"|')[^>]*>\s*<\/script>\s*/gi,
-        ""
-      );
-
-      out = out.replace(
-        /<script\b[^>]*\bsrc=(?:"|')https:\/\/www\.gstatic\.com\/cv\/js\/sender\/v1\/cast_sender\.js[^"']*(?:"|')[^>]*>\s*<\/script>\s*/gi,
-        ""
-      );
-
-      out = out.replace(
-        /<script\b[^>]*\bsrc=(?:"|')https:\/\/assetsnffrgf-a\.akamaihd\.net\/assets\/ct\/[^"']*\/thirdparty\.js(?:"|')[^>]*>\s*<\/script>\s*/gi,
-        ""
-      );
-
-      out = out.replace(
-        /<script\b[^>]*\bsrc=(?:"|')https:\/\/assetsnffrgf-a\.akamaihd\.net\/assets\/ct\/[^"']*\/legal-notices-client\.umd\.js(?:"|')[^>]*>\s*<\/script>\s*/gi,
-        ""
-      );
-
-      out = out.replace(
-        /<script\b[^>]*\bsrc=(?:"|')https:\/\/assetsnffrgf-a\.akamaihd\.net\/assets\/ct\/[^"']*\/cms\.js(?:"|')[^>]*>\s*<\/script>\s*/gi,
-        ""
-      );
-
-      out = out.replace(
-        /<script\b[^>]*\bsrc=(?:"|')https:\/\/assetsnffrgf-a\.akamaihd\.net\/assets\/ct\/[^"']*\/all-videos\.js(?:"|')[^>]*>\s*<\/script>\s*/gi,
         ""
       );
 
