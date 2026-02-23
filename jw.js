@@ -22,7 +22,9 @@ export default {
 
     const keepOnlyArticle = (html) => {
       const src = html.replace(/\r\n/g, "\n");
-      const start = src.search(/<article\b[^>]*\bid=(?:"|')article(?:"|')[^>]*>/i);
+      const start = src.search(
+        /<article\b[^>]*\bid=(?:"|')article(?:"|')[^>]*>/i
+      );
       if (start < 0) return src;
 
       const end = src.search(/<\/article\s*>/i);
@@ -31,10 +33,31 @@ export default {
       return src.slice(start, end) + "</article>";
     };
 
+    const stripTags = (s) =>
+      s
+        .replace(/<br\s*\/?>/gi, " ")
+        .replace(/<\/p\s*>/gi, " ")
+        .replace(/<[^>]+>/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const decodeEntities = (s) =>
+      s
+        .replace(/&nbsp;/g, " ")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(parseInt(n, 10)))
+        .replace(/&#x([0-9a-fA-F]+);/g, (_, n) =>
+          String.fromCharCode(parseInt(n, 16))
+        );
+
     try {
       const headers = new Headers({
         "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+          "Mozilla/5.0 (Windows NT 10A (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
         Accept:
           "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
@@ -80,7 +103,12 @@ export default {
         .on(".jsAudioFormat", { element: (el) => el.remove() })
         .on(".jsVideoPoster", { element: (el) => el.remove() })
         .on(".articleFooterLinks", { element: (el) => el.remove() })
-        .on(".pageNum", { element: (el) => el.remove() });
+        .on(".pageNum", { element: (el) => el.remove() })
+        .on("p.qu", {
+          element(el) {
+            el.remove();
+          },
+        });
 
       const cleaned = await rewriter
         .transform(
@@ -90,7 +118,15 @@ export default {
         )
         .text();
 
-      const finalHtml = normalizeBlankLines(cleaned);
+      const withQuestions = cleaned.replace(
+        /<p\b[^>]*\bclass=(?:"[^"]*\bqu\b[^"]*"|'[^']*\bqu\b[^']*')[^>]*>([\s\S]*?)<\/p>/gi,
+        (_, inner) => {
+          const text = decodeEntities(stripTags(inner));
+          return `\n<pergunta>${text}</pergunta>\n`;
+        }
+      );
+
+      const finalHtml = normalizeBlankLines(withQuestions);
 
       return new Response(finalHtml, {
         status: 200,
