@@ -28,8 +28,7 @@ export default {
       const end = src.search(/<\/article\s*>/i);
       if (end < 0 || end <= start) return src.slice(start);
 
-      const article = src.slice(start, end) + "</article>";
-      return article;
+      return src.slice(start, end) + "</article>";
     };
 
     try {
@@ -53,7 +52,7 @@ export default {
 
       const response = await fetch(targetUrl, {
         method: "GET",
-        headers: headers,
+        headers,
         redirect: "follow",
       });
 
@@ -73,7 +72,25 @@ export default {
       }
 
       const onlyArticle = keepOnlyArticle(html);
-      const finalHtml = normalizeBlankLines(onlyArticle);
+
+      const rewriter = new HTMLRewriter()
+        .on(".gen-field", { element: (el) => el.remove() })
+        .on(".jsPinnedAudioPlayer", { element: (el) => el.remove() })
+        .on(".jsAudioPlayer", { element: (el) => el.remove() })
+        .on(".jsAudioFormat", { element: (el) => el.remove() })
+        .on(".jsVideoPoster", { element: (el) => el.remove() })
+        .on(".articleFooterLinks", { element: (el) => el.remove() })
+        .on(".pageNum", { element: (el) => el.remove() });
+
+      const cleaned = await rewriter
+        .transform(
+          new Response(onlyArticle, {
+            headers: { "Content-Type": "text/html;charset=UTF-8" },
+          })
+        )
+        .text();
+
+      const finalHtml = normalizeBlankLines(cleaned);
 
       return new Response(finalHtml, {
         status: 200,
