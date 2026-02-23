@@ -207,7 +207,6 @@ export default {
     };
     // <<<PROCESSADOR_5_FIM<<<
 
-
     try {
       const headers = new Headers({
         "User-Agent":
@@ -271,9 +270,7 @@ export default {
       const afterP3 = PROCESSADOR_3(afterP2);
       const afterP4 = PROCESSADOR_4(afterP3);
       const afterP5 = PROCESSADOR_5(afterP4);
-      const afterP6 = PROCESSADOR_6(afterP5);
-      const afterP7 = PROCESSADOR_7(afterP6);
-      const withPerguntas = processPerguntas(afterP7);
+      const withPerguntas = processPerguntas(afterP5);
       const finalHtml = normalizeBlankLines(withPerguntas);
 
       return new Response(finalHtml, {
