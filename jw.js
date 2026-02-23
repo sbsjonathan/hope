@@ -85,9 +85,7 @@ export default {
         const closeStart = i + nextClose;
         const closeEnd =
           closeStart +
-          out
-            .slice(closeStart)
-            .match(/<\/div\s*>/i)[0].length;
+          out.slice(closeStart).match(/<\/div\s*>/i)[0].length;
 
         if (depth === 0) {
           const inside = out.slice(openEnd, closeStart);
@@ -115,7 +113,7 @@ export default {
         /<p\b[^>]*\bclass=(["'])[^"']*\bcontextTtl\b[^"']*\1[^>]*>[\s\S]*?<\/p>/i,
         (m) => {
           const txt = stripTags(m).replace(/\s+/g, " ").trim();
-          return `<estudo>${txt}</estudo>`;
+          return `<estudo>${txt}</estudo>\n\n`;
         }
       );
 
@@ -123,7 +121,7 @@ export default {
         /<div\b[^>]*\bid=(?:"|')tt4(?:"|')[^>]*>[\s\S]*?<\/div>/i,
         (m) => {
           const txt = stripTags(m).replace(/\s+/g, " ").trim();
-          return `<cantico>${txt}</cantico>`;
+          return `<cantico>${txt}</cantico>\n\n`;
         }
       );
 
@@ -131,7 +129,7 @@ export default {
         /<h1\b[^>]*>[\s\S]*?<\/h1>/i,
         (m) => {
           const txt = stripTags(m).replace(/\s+/g, " ").trim();
-          return `<tema>${txt}</tema>`;
+          return `<tema>${txt}</tema>\n\n`;
         }
       );
 
@@ -164,6 +162,45 @@ export default {
       return out;
     };
     // <<<PROCESSADOR_4_FIM<<<
+
+    // >>>PROCESSADOR_5_INICIO<<<
+    const PROCESSADOR_5 = (html) => {
+      let out = html.replace(/\r\n/g, "\n");
+
+      out = out.replace(
+        /<\/tema>\s*<\/header>[\s\S]*?(?=<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>|<p\b[^>]*\bclass=(?:"|')[^"']*\bthemeScrp\b[^"']*(?:"|')[^>]*>)/i,
+        "</tema>\n\n"
+      );
+
+      const stripTagsExceptBbl = (s) => {
+        let t = s;
+        t = t.replace(/<\s*\/?\s*bbl\s*>/gi, (m) => `§§B§§${m}§§/B§§`);
+        t = t.replace(/<[^>]+>/g, "");
+        t = t
+          .replace(/§§B§§<\s*bbl\s*>§§\/B§§/gi, "<bbl>")
+          .replace(/§§B§§<\s*\/\s*bbl\s*>§§\/B§§/gi, "</bbl>");
+        return t;
+      };
+
+      out = out.replace(
+        /<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bthemeScrp\b[^"']*\1[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
+        (_m, _q, inner) => {
+          const txt = stripTagsExceptBbl(inner).replace(/\s+/g, " ").trim();
+          return `<citacao>${txt}</citacao>\n\n`;
+        }
+      );
+
+      out = out.replace(
+        /<div\b[^>]*\bid=(?:"|')tt11(?:"|')[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?<strong[^>]*>\s*OBJETIVO\s*<\/strong>[\s\S]*?<\/p>\s*<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
+        (_m, body) => {
+          const txt = stripTags(body).replace(/\s+/g, " ").trim();
+          return `<objetivo>OBJETIVO\n\n${txt}</objetivo>\n\n`;
+        }
+      );
+
+      return out;
+    };
+    // <<<PROCESSADOR_5_FIM<<<
 
     try {
       const headers = new Headers({
@@ -227,7 +264,8 @@ export default {
       const afterP2 = PROCESSADOR_2(cleaned);
       const afterP3 = PROCESSADOR_3(afterP2);
       const afterP4 = PROCESSADOR_4(afterP3);
-      const withPerguntas = processPerguntas(afterP4);
+      const afterP5 = PROCESSADOR_5(afterP4);
+      const withPerguntas = processPerguntas(afterP5);
       const finalHtml = normalizeBlankLines(withPerguntas);
 
       return new Response(finalHtml, {
