@@ -259,7 +259,7 @@ export default {
 const PROCESSADOR_7 = (html) => {
   let out = html.replace(/\r\n/g, "\n");
 
-  const stripTagsPreserveEmStrongBbl = (s) => {
+  const stripTagsPreserveBasic = (s) => {
     let t = s;
     t = t.replace(/<\s*em\s*>/gi, "__EMO__");
     t = t.replace(/<\s*\/\s*em\s*>/gi, "__EMC__");
@@ -278,34 +278,21 @@ const PROCESSADOR_7 = (html) => {
     return t;
   };
 
-  const titleCaseFromAllCaps = (s) => {
-    const raw = (s || "").replace(/\s+/g, " ").trim();
-    return raw
-      .split(" ")
-      .map((w) => {
-        const clean = w.replace(/[^\p{L}\p{N}]+/gu, "");
-        if (!clean) return w;
-        const isAllCaps =
-          clean === clean.toUpperCase() &&
-          clean !== clean.toLowerCase();
-        if (!isAllCaps) return w;
-        const first = w.slice(0, 1);
-        const rest = w.slice(1);
-        return first + rest.toLowerCase();
-      })
-      .join(" ")
-      .replace(/\s*:\s*$/, ":");
-  };
-
+  // =========================
+  // RECAP (H2 + UL + LI)
+  // =========================
   out = out.replace(
-    /<subtitulo>([\s\S]*?)<\/subtitulo>\s*<\/div>\s*<div\b[^>]*\bboxContent\b[^>]*>\s*<ul>([\s\S]*?)<\/ul>\s*<\/div>\s*<\/aside>\s*<\/div>/i,
-    (_m, subInner, ulInner) => {
-      const titleRaw = subInner.replace(/<[^>]+>/g, " ");
-      const title = titleCaseFromAllCaps(titleRaw);
+    /<h2\b[^>]*>([\s\S]*?)<\/h2>\s*<\/div>\s*<div\b[^>]*\bboxContent\b[^>]*>\s*<ul>([\s\S]*?)<\/ul>[\s\S]*?<\/aside>\s*<\/div>/i,
+    (_m, tituloInner, ulInner) => {
+      const titulo = stripTagsPreserveBasic(tituloInner)
+        .replace(/\s+/g, " ")
+        .trim();
 
       const items = [];
       ulInner.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_mm, liInner) => {
-        const txt = liInner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        const txt = stripTagsPreserveBasic(liInner)
+          .replace(/\s+/g, " ")
+          .trim();
         if (txt) items.push(txt);
         return "";
       });
@@ -313,29 +300,46 @@ const PROCESSADOR_7 = (html) => {
       let bullets = "";
       for (const it of items) bullets += `\n\n• ${it}`;
 
-      return `<recap>${title}${bullets}</recap>\n\n`;
+      return `<recap>${titulo}${bullets}</recap>\n\n`;
     }
   );
 
+  // =========================
+  // CANTICO FINAL
+  // =========================
   out = out.replace(
-    /<div\b[^>]*\bid=(?:"|')tt39(?:"|')[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\1[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
-    (_m, _q, inner) => {
-      const txt = inner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    /<div\b[^>]*\bid=(["'])tt39\1[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
+    (_m, _id, inner) => {
+      const txt = stripTagsPreserveBasic(inner)
+        .replace(/\s+/g, " ")
+        .trim();
       return `<cantico>${txt}</cantico>\n\n`;
     }
   );
 
+  // =========================
+  // NOTA (FOOTNOTE)
+  // =========================
   out = out.replace(
-    /<div\b[^>]*\bclass=(["'])[^"']*\bgroupFootnote\b[^"']*\1[^>]*>[\s\S]*?<div\b[^>]*\bid=(?:"|')footnote\d+(?:"|')[^>]*>\s*<p\b[^>]*>([\s\S]*?)<\/p>\s*<\/div>[\s\S]*?<\/div>/i,
+    /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>\s*<\/div>/i,
     (_m, _q, inner) => {
-      let txt = stripTagsPreserveEmStrongBbl(inner).replace(/\s+/g, " ").trim();
+      let txt = stripTagsPreserveBasic(inner)
+        .replace(/\s+/g, " ")
+        .trim();
+
       txt = txt.replace(/^[a-z]\s+/i, "* ");
-      txt = txt.replace(/^\*\s+/, "* ");
+
       return `<nota>${txt}</nota>\n\n`;
     }
   );
 
-  out = out.replace(/<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/article>\s*$/i, "");
+  // =========================
+  // REMOVE LIXO FINAL
+  // =========================
+  out = out.replace(
+    /<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/article>\s*$/i,
+    ""
+  );
 
   return out;
 };
