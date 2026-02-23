@@ -240,7 +240,10 @@ export default {
           caption = stripTags(figcapMatch[1]).replace(/\s+/g, " ").trim();
         }
 
-        return `\n\n<figure>\n  <img src="${src}"\n       alt="${alt}">\n  <figcaption>\n    ${caption}\n  </figcaption>\n</figure>\n\n`;
+        const imgBlock = `  <img src="${src}"\n       alt="${alt}">`;
+        const capBlock = `  <figcaption>\n    ${caption}\n  </figcaption>`;
+
+        return `\n\n<figure>\n${imgBlock}\n${capBlock}\n</figure>\n\n`;
       };
 
       out = out.replace(
@@ -256,47 +259,68 @@ export default {
     const PROCESSADOR_7 = (html) => {
       let out = html.replace(/\r\n/g, "\n");
 
+      const normalizeTitle = (s) =>
+        (s || "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .replace(/\s*:\s*$/, ":");
+
+      const stripTagsPreserveEmStrongBbl = (s) => {
+        let t = s;
+        t = t.replace(/<\s*em\s*>/gi, "__EMO__");
+        t = t.replace(/<\s*\/\s*em\s*>/gi, "__EMC__");
+        t = t.replace(/<\s*strong\s*>/gi, "__STO__");
+        t = t.replace(/<\s*\/\s*strong\s*>/gi, "__STC__");
+        t = t.replace(/<\s*bbl\s*>/gi, "__BBLO__");
+        t = t.replace(/<\s*\/\s*bbl\s*>/gi, "__BBLC__");
+        t = t.replace(/<[^>]+>/g, "");
+        t = t
+          .replace(/__EMO__/g, "<em>")
+          .replace(/__EMC__/g, "</em>")
+          .replace(/__STO__/g, "<strong>")
+          .replace(/__STC__/g, "</strong>")
+          .replace(/__BBLO__/g, "<bbl>")
+          .replace(/__BBLC__/g, "</bbl>");
+        return t;
+      };
+
       out = out.replace(
-        /<subtitulo>\s*([\s\S]*?)\s*<\/subtitulo>\s*<\/div>\s*<div\b[^>]*\bclass=(["'])[^"']*\bboxContent\b[^"']*\2[^>]*>\s*<ul>([\s\S]*?)<\/ul>\s*<\/div>\s*<\/aside>\s*<\/div>/i,
-        (_m, tituloRaw, _q, ulInner) => {
-          const titulo = stripTags(tituloRaw).replace(/\s+/g, " ").trim();
-          const itens = [];
-          ulInner.replace(/<p\b[^>]*>([\s\S]*?)<\/p>/gi, (_mm, pInner) => {
-            const t = stripTags(pInner).replace(/\s+/g, " ").trim();
-            if (t) itens.push(t);
+        /<subtitulo>([\s\S]*?)<\/subtitulo>\s*<\/div>\s*<div\b[^>]*\bclass=(["'])[^"']*\bboxContent\b[^"']*\2[^>]*>\s*<ul>([\s\S]*?)<\/ul>[\s\S]*?<\/aside>\s*<\/div>/i,
+        (_m, subInner, _q, ulInner) => {
+          const title = normalizeTitle(stripTags(subInner));
+
+          const items = [];
+          ulInner.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_mm, liInner) => {
+            const txt = stripTags(liInner).replace(/\s+/g, " ").trim();
+            if (txt) items.push(txt);
             return "";
           });
-          const bullets = itens.map((t) => `• ${t}`).join("\n\n");
-          return `\n\n<recap>${titulo}\n\n${bullets}</recap>\n\n`;
+
+          let bullets = "";
+          for (const it of items) bullets += `\n\n• ${it}`;
+          return `<recap>${title}${bullets}</recap>\n\n`;
         }
       );
 
       out = out.replace(
-        /<div\b[^>]*\bid=(?:"|')tt39(?:"|')[^>]*>[\s\S]*?<\/div>/i,
-        (m) => {
-          const txt = stripTags(m).replace(/\s+/g, " ").trim();
-          return `\n\n<cantico>${txt}</cantico>\n\n`;
-        }
-      );
-
-      out = out.replace(
-        /<div\b[^>]*\bclass=(["'])[^"']*\bgroupFootnote\b[^"']*\1[^>]*>\s*([\s\S]*?)<\/div>\s*/i,
+        /<div\b[^>]*\bid=(?:"|')tt39(?:"|')[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\1[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
         (_m, _q, inner) => {
-          const footMatch = inner.match(
-            /<div\b[^>]*\bid=(?:"|')footnote\d+(?:"|')[^>]*>\s*<p\b[^>]*>([\s\S]*?)<\/p>\s*<\/div>/i
-          );
-          if (!footMatch) return "";
-          let content = footMatch[1] || "";
-          content = content.replace(
-            /<a\b[^>]*\bclass=(["'])[^"']*\bfn-symbol\b[^"']*\1[^>]*>[\s\S]*?<\/a>\s*/i,
-            ""
-          );
-          content = content.replace(/^\s+/, "").replace(/\s+$/, "");
-          return `\n\n<nota>* ${content}</nota>\n\n`;
+          const txt = stripTags(inner).replace(/\s+/g, " ").trim();
+          return `<cantico>${txt}</cantico>\n\n`;
         }
       );
 
-      out = out.replace(/\s*(?:<\/div>\s*)+(?:<\/article>\s*)?$/i, "\n");
+      out = out.replace(
+        /<div\b[^>]*\bclass=(["'])[^"']*\bgroupFootnote\b[^"']*\1[^>]*>[\s\S]*?<div\b[^>]*\bid=(?:"|')footnote\d+(?:"|')[^>]*>\s*<p\b[^>]*>([\s\S]*?)<\/p>\s*<\/div>[\s\S]*?<\/div>/i,
+        (_m, _q, inner) => {
+          let txt = stripTagsPreserveEmStrongBbl(inner).replace(/\s+/g, " ").trim();
+          txt = txt.replace(/^[a-z]\s+/i, "* ");
+          txt = txt.replace(/^\*\s+/, "* ");
+          return `<nota>${txt}</nota>\n\n`;
+        }
+      );
+
+      out = out.replace(/<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/article>\s*$/i, "");
 
       return out;
     };
