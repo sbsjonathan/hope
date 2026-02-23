@@ -13,28 +13,34 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    // (O que você já limpou antes pode ficar aqui)
     const cleanHtmlBase = (html) => {
       let out = html;
 
-      // alternates/hreflang + og:locale:alternate (idiomas no HEAD)
       out = out.replace(
         /<link\b[^>]*\brel=(?:"|')alternate(?:"|')[^>]*>/gi,
         ""
       );
+
       out = out.replace(
         /<meta\b[^>]*(?:property|name)=(?:"|')og:locale:alternate(?:"|')[^>]*>/gi,
         ""
       );
 
-      // bloco gigante de idiomas "Gostaria de ler este artigo em..."
       out = out.replace(
         /Gostaria\s+de\s+ler\s+este\s+artigo\s+em[\s\S]*?(?=(?:\b\d{1,2}\s*[-–]\s*\d{1,2}\s+DE\s+[A-ZÇÃÕÁÉÍÓÚ]+\s+DE\s+\d{4}\b|<h1\b|<main\b|<article\b))/i,
         ""
       );
 
-      // só pra não ficar um “buraco” enorme
+      return out;
+    };
+
+    const cleanupWhitespace = (html) => {
+      let out = html;
+
+      out = out.replace(/>\s+</g, "><");
+      out = out.replace(/[ \t]+\n/g, "\n");
       out = out.replace(/\n{3,}/g, "\n\n");
+      out = out.replace(/^\s+|\s+$/g, "");
 
       return out;
     };
@@ -79,49 +85,45 @@ export default {
         );
       }
 
-      // 1) mantém tua limpeza anterior (regex)
       const baseCleaned = cleanHtmlBase(html);
 
-      // 2) agora: remove só nós específicos (bem seguro)
       const rewriter = new HTMLRewriter()
-        // (5) remove "Sua resposta" / textareas
-        .on(".gen-field", {
-          element(el) {
-            el.remove();
-          },
-        })
-        // (6) remove player fixo e UI de áudio
-        .on(".jsPinnedAudioPlayer", {
-          element(el) {
-            el.remove();
-          },
-        })
-        .on(".jsAudioPlayer", {
-          element(el) {
-            el.remove();
-          },
-        })
-        .on(".jsAudioFormat", {
-          element(el) {
-            el.remove();
-          },
-        })
-        // (NOVO) remove itens de navegação mobile que aparecem como "mobileNavLink ..."
-        .on(".mobileNavLink", {
-          element(el) {
-            el.remove();
-          },
-        });
+        .on(".gen-field", { element: (el) => el.remove() })
+        .on(".jsPinnedAudioPlayer", { element: (el) => el.remove() })
+        .on(".jsAudioPlayer", { element: (el) => el.remove() })
+        .on(".jsAudioFormat", { element: (el) => el.remove() })
+        .on(".mobileNavLink", { element: (el) => el.remove() })
+        .on(".articleNavLinks", { element: (el) => el.remove() })
+        .on(".articleShareLinks", { element: (el) => el.remove() })
+        .on("#mobileTOCNav", { element: (el) => el.remove() })
+        .on("#sidebar", { element: (el) => el.remove() })
+        .on("#sidebarTOC", { element: (el) => el.remove() })
+        .on("footer", { element: (el) => el.remove() })
+        .on("#templates", { element: (el) => el.remove() })
+        .on(".subnavItem", { element: (el) => el.remove() })
+        .on(".subNavItem", { element: (el) => el.remove() });
 
-      const response = new Response(baseCleaned, {
+      const transformedText = await rewriter
+        .transform(
+          new Response(baseCleaned, {
+            status: 200,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "text/html;charset=UTF-8",
+            },
+          })
+        )
+        .text();
+
+      const finalHtml = cleanupWhitespace(transformedText);
+
+      return new Response(finalHtml, {
         status: 200,
         headers: {
           ...corsHeaders,
           "Content-Type": "text/html;charset=UTF-8",
         },
       });
-
-      return rewriter.transform(response);
     } catch (error) {
       return new Response(`Erro na infraestrutura do Worker: ${error.message}`, {
         status: 500,
