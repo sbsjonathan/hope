@@ -13,6 +13,7 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
+    // (O que você já limpou antes pode ficar aqui)
     const cleanHtmlBase = (html) => {
       let out = html;
 
@@ -32,7 +33,9 @@ export default {
         ""
       );
 
+      // só pra não ficar um “buraco” enorme
       out = out.replace(/\n{3,}/g, "\n\n");
+
       return out;
     };
 
@@ -44,6 +47,14 @@ export default {
           "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
         "Cache-Control": "max-age=0",
+        "Sec-Ch-Ua":
+          '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
         "Upgrade-Insecure-Requests": "1",
       });
 
@@ -68,8 +79,10 @@ export default {
         );
       }
 
+      // 1) mantém tua limpeza anterior (regex)
       const baseCleaned = cleanHtmlBase(html);
 
+      // 2) agora: remove só nós específicos (bem seguro)
       const rewriter = new HTMLRewriter()
         // (5) remove "Sua resposta" / textareas
         .on(".gen-field", {
@@ -77,8 +90,7 @@ export default {
             el.remove();
           },
         })
-
-        // (6) remove player / UI de áudio
+        // (6) remove player fixo e UI de áudio
         .on(".jsPinnedAudioPlayer", {
           element(el) {
             el.remove();
@@ -94,16 +106,8 @@ export default {
             el.remove();
           },
         })
-
-        // (NOVO) remove itens do menu mobile (mobileNavLink...)
+        // (NOVO) remove itens de navegação mobile que aparecem como "mobileNavLink ..."
         .on(".mobileNavLink", {
-          element(el) {
-            el.remove();
-          },
-        })
-
-        // (NOVO) remove a barra superior mobile (logo/idioma/botões)
-        .on("#mobileNavTopBar", {
           element(el) {
             el.remove();
           },
