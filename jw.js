@@ -255,59 +255,7 @@ export default {
     };
     // <<<PROCESSADOR_6_FIM<<<
 
-// >>>PROCESSADOR_7_INICIO<<<
-const PROCESSADOR_7 = (html) => {
-  let out = html.replace(/\r\n/g, "\n");
 
-  const stripTagsPreserveBasic = (s) => {
-    let t = s;
-    t = t.replace(/<\s*em\s*>/gi, "__EMO__");
-    t = t.replace(/<\s*\/\s*em\s*>/gi, "__EMC__");
-    t = t.replace(/<\s*strong\s*>/gi, "__STO__");
-    t = t.replace(/<\s*\/\s*strong\s*>/gi, "__STC__");
-    t = t.replace(/<\s*bbl\s*>/gi, "__BBLO__");
-    t = t.replace(/<\s*\/\s*bbl\s*>/gi, "__BBLC__");
-    t = t.replace(/<[^>]+>/g, "");
-    t = t
-      .replace(/__EMO__/g, "<em>")
-      .replace(/__EMC__/g, "</em>")
-      .replace(/__STO__/g, "<strong>")
-      .replace(/__STC__/g, "</strong>")
-      .replace(/__BBLO__/g, "<bbl>")
-      .replace(/__BBLC__/g, "</bbl>");
-    return t;
-  };
-
-  // =========================
-  // RECAP (ASIDE INTEIRO)
-  // =========================
-  out = out.replace(
-    /<aside>([\s\S]*?)<\/aside>/i,
-    (_m, asideInner) => {
-      const tituloMatch = asideInner.match(/<h2>([\s\S]*?)<\/h2>/i);
-      const ulMatch = asideInner.match(/<ul>([\s\S]*?)<\/ul>/i);
-
-      if (!tituloMatch || !ulMatch) return _m;
-
-      const titulo = stripTagsPreserveBasic(tituloMatch[1])
-        .replace(/\s+/g, " ")
-        .trim();
-
-      const items = [];
-      ulMatch[1].replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_mm, liInner) => {
-        const txt = stripTagsPreserveBasic(liInner)
-          .replace(/\s+/g, " ")
-          .trim();
-        if (txt) items.push(txt);
-        return "";
-      });
-
-      let bullets = "";
-      for (const it of items) bullets += `\n\n• ${it}`;
-
-      return `<recap>${titulo}${bullets}</recap>\n\n`;
-    }
-  );
 
   // =========================
   // CANTICO FINAL
