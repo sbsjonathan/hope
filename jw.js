@@ -83,7 +83,11 @@ export default {
 
         depth--;
         const closeStart = i + nextClose;
-        const closeEnd = closeStart + out.slice(closeStart).match(/<\/div\s*>/i)[0].length;
+        const closeEnd =
+          closeStart +
+          out
+            .slice(closeStart)
+            .match(/<\/div\s*>/i)[0].length;
 
         if (depth === 0) {
           const inside = out.slice(openEnd, closeStart);
@@ -102,6 +106,38 @@ export default {
       return out;
     };
     // <<<PROCESSADOR_2_FIM<<<
+
+    // >>>PROCESSADOR_3_INICIO<<<
+    const PROCESSADOR_3 = (html) => {
+      let out = html.replace(/\r\n/g, "\n");
+
+      out = out.replace(
+        /<p\b[^>]*\bclass=(["'])[^"']*\bcontextTtl\b[^"']*\1[^>]*>[\s\S]*?<\/p>/i,
+        (m) => {
+          const txt = stripTags(m).replace(/\s+/g, " ").trim();
+          return `<estudo>${txt}</estudo>`;
+        }
+      );
+
+      out = out.replace(
+        /<div\b[^>]*\bid=(?:"|')tt4(?:"|')[^>]*>[\s\S]*?<\/div>/i,
+        (m) => {
+          const txt = stripTags(m).replace(/\s+/g, " ").trim();
+          return `<cantico>${txt}</cantico>`;
+        }
+      );
+
+      out = out.replace(
+        /<h1\b[^>]*>[\s\S]*?<\/h1>/i,
+        (m) => {
+          const txt = stripTags(m).replace(/\s+/g, " ").trim();
+          return `<tema>${txt}</tema>`;
+        }
+      );
+
+      return out;
+    };
+    // <<<PROCESSADOR_3_FIM<<<
 
     try {
       const headers = new Headers({
@@ -163,7 +199,8 @@ export default {
         .text();
 
       const afterP2 = PROCESSADOR_2(cleaned);
-      const withPerguntas = processPerguntas(afterP2);
+      const afterP3 = PROCESSADOR_3(afterP2);
+      const withPerguntas = processPerguntas(afterP3);
       const finalHtml = normalizeBlankLines(withPerguntas);
 
       return new Response(finalHtml, {
