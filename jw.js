@@ -48,16 +48,18 @@ export default {
 
     const extractDocIdAndBg = (html) => {
       const mDoc = html.match(/\bdocId-(\d+)\b/i);
-      const docId = mDoc ? mDoc[1] : "";
-
       const mBg = html.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
+      const docId = mDoc ? mDoc[1] : "";
       const bg = mBg ? mBg[1] : "";
-
-      return `${docId}\n\n${bg}\n\n`;
+      return `${docId}\n\n${bg}\n\n${html}`;
     };
 
-    const removeArticleOpenTagOnly = (html) => {
-      return html.replace(/^\s*<article\b[^>]*>\s*/i, "");
+    const stripLeadingToFirstContent = (html) => {
+      const m = html.match(
+        /<(?:h1|h2|h3|p|figure|div)\b/i
+      );
+      if (!m || typeof m.index !== "number") return html;
+      return html.slice(m.index);
     };
 
     try {
@@ -119,18 +121,16 @@ export default {
         )
         .text();
 
-      const header = extractDocIdAndBg(cleaned);
-
-      let body = removeArticleOpenTagOnly(cleaned);
-      body = processPerguntas(body);
-
-      const finalText = normalizeBlankLines(header + body);
+      const withPerguntas = processPerguntas(cleaned);
+      const stripped = stripLeadingToFirstContent(withPerguntas);
+      const finalBody = extractDocIdAndBg(stripped);
+      const finalText = normalizeBlankLines(finalBody);
 
       return new Response(finalText, {
         status: 200,
         headers: {
           ...corsHeaders,
-          "Content-Type": "text/html;charset=UTF-8",
+          "Content-Type": "text/plain;charset=UTF-8",
         },
       });
     } catch (error) {
