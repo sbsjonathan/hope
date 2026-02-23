@@ -16,18 +16,30 @@ export default {
     const cleanHtmlBase = (html) => {
       let out = html;
 
+      out = out.replace(/\r\n/g, "\n");
+
       out = out.replace(
-        /<link\b[^>]*\brel=(?:"|')alternate(?:"|')[^>]*>/gi,
+        /<link\b[^>]*\brel=(?:"|')alternate(?:"|')[^>]*>\s*/gi,
         ""
       );
 
       out = out.replace(
-        /<meta\b[^>]*(?:property|name)=(?:"|')og:locale:alternate(?:"|')[^>]*>/gi,
+        /<meta\b[^>]*(?:property|name)=(?:"|')og:locale:alternate(?:"|')[^>]*>\s*/gi,
         ""
       );
 
       out = out.replace(
         /Gostaria\s+de\s+ler\s+este\s+artigo\s+em[\s\S]*?(?=(?:\b\d{1,2}\s*[-–]\s*\d{1,2}\s+DE\s+[A-ZÇÃÕÁÉÍÓÚ]+\s+DE\s+\d{4}\b|<h1\b|<main\b|<article\b))/i,
+        ""
+      );
+
+      out = out.replace(
+        /<script\b[^>]*>\s*document\.body\.className\s*=\s*document\.body\.className\.replace\([\s\S]*?\);\s*<\/script>\s*/gi,
+        ""
+      );
+
+      out = out.replace(
+        /<script\b[^>]*>\s*var\s+theme;\s*[\s\S]*?<\/script>\s*/gi,
         ""
       );
 
@@ -97,7 +109,14 @@ export default {
         .on("footer", { element: (el) => el.remove() })
         .on("#templates", { element: (el) => el.remove() })
         .on(".subnavItem", { element: (el) => el.remove() })
-        .on(".subNavItem", { element: (el) => el.remove() });
+        .on(".subNavItem", { element: (el) => el.remove() })
+        .on("#screenReaderNavLinkTop", { element: (el) => el.remove() })
+        .on("#pageConfig", { element: (el) => el.remove() })
+        .on(".jsVideoPoster", { element: (el) => el.remove() })
+        .on("#mobileNavTopBar", { element: (el) => el.remove() })
+        .on("#regionHeader", { element: (el) => el.remove() })
+        .on("#regionPrimaryNav", { element: (el) => el.remove() })
+        .on(".breadcrumbs", { element: (el) => el.remove() });
 
       const transformed = rewriter.transform(
         new Response(baseCleaned, {
