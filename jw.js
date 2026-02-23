@@ -1,5 +1,5 @@
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request) {
     const targetUrl =
       "https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-janeiro-2026/Continue-cuidando-da-sua-necessidade-espiritual/";
 
@@ -34,14 +34,10 @@ export default {
       return out;
     };
 
-    const cleanupWhitespace = (html) => {
-      let out = html;
-
-      out = out.replace(/>\s+</g, "><");
+    const normalizeBlankLines = (html) => {
+      let out = html.replace(/\r\n/g, "\n");
       out = out.replace(/[ \t]+\n/g, "\n");
       out = out.replace(/\n{3,}/g, "\n\n");
-      out = out.replace(/^\s+|\s+$/g, "");
-
       return out;
     };
 
@@ -103,19 +99,17 @@ export default {
         .on(".subnavItem", { element: (el) => el.remove() })
         .on(".subNavItem", { element: (el) => el.remove() });
 
-      const transformedText = await rewriter
-        .transform(
-          new Response(baseCleaned, {
-            status: 200,
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "text/html;charset=UTF-8",
-            },
-          })
-        )
-        .text();
+      const transformed = rewriter.transform(
+        new Response(baseCleaned, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/html;charset=UTF-8",
+          },
+        })
+      );
 
-      const finalHtml = cleanupWhitespace(transformedText);
+      const finalHtml = normalizeBlankLines(await transformed.text());
 
       return new Response(finalHtml, {
         status: 200,
