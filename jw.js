@@ -172,13 +172,18 @@ export default {
         "</tema>\n\n"
       );
 
+      out = out.replace(
+        /<div\b[^>]*\bclass=(["'])[^"']*\bbodyTxt\b[^"']*\1[^>]*>/gi,
+        ""
+      );
+
       const stripTagsExceptBbl = (s) => {
         let t = s;
-        t = t.replace(/<\s*\/?\s*bbl\s*>/gi, (m) => `§§B§§${m}§§/B§§`);
+        t = t.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__");
+        t = t.replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
         t = t.replace(/<[^>]+>/g, "");
-        t = t
-          .replace(/§§B§§<\s*bbl\s*>§§\/B§§/gi, "<bbl>")
-          .replace(/§§B§§<\s*\/\s*bbl\s*>§§\/B§§/gi, "</bbl>");
+        t = t.replace(/__BBL_OPEN__/g, "<bbl>");
+        t = t.replace(/__BBL_CLOSE__/g, "</bbl>");
         return t;
       };
 
