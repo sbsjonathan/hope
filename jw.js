@@ -13,8 +13,8 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    const normalizeBlankLines = (s) => {
-      let out = s.replace(/\r\n/g, "\n");
+    const normalizeBlankLines = (html) => {
+      let out = html.replace(/\r\n/g, "\n");
       out = out.replace(/[ \t]+\n/g, "\n");
       out = out.replace(/\n{3,}/g, "\n\n");
       return out.trim() + "\n";
@@ -44,27 +44,6 @@ export default {
           return `\n\n<pergunta>${conteudo}</pergunta>\n\n`;
         }
       );
-    };
-
-    const extractDocIdAndBgAndStripHeader = (html) => {
-      const mDoc = html.match(/\bdocId-(\d+)\b/i);
-      const docId = mDoc ? mDoc[1] : "";
-
-      const mBg = html.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
-      const bg = mBg ? mBg[1] : "";
-
-      const payload = `${docId}\n\n${bg}\n\n`;
-
-      let out = html;
-
-      out = out.replace(/^\s*<article\b[^>]*>\s*/i, payload);
-
-      out = out.replace(
-        /^(?:\s*<div\b[^>]*>\s*){0,20}\s*(?:<header\b[^>]*>[\s\S]*?<\/header>\s*)?/i,
-        ""
-      );
-
-      return out;
     };
 
     try {
@@ -109,14 +88,32 @@ export default {
 
       const onlyArticle = keepOnlyArticle(html);
 
+      // ========= EXTRAÇÃO DO docId e du-bgColor =========
+      // docId vem no class do <article> tipo: docId-2026240
+      const docIdMatch = onlyArticle.match(/\bdocId-(\d+)\b/i);
+      const docId = docIdMatch ? docIdMatch[1] : "";
+
+      // bgColor vem em alguma class tipo: du-bgColor--amber-600
+      const bgMatch = onlyArticle.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
+      const bgColor = bgMatch ? bgMatch[1] : "";
+
+      // Prefixo desejado (com “espaço branco” = linha em branco)
+      const prefix = `${docId}\n\n${bgColor}\n\n`;
+      // ================================================
+
       const rewriter = new HTMLRewriter()
+        // remove o “lixo” que você já removia
         .on(".gen-field", { element: (el) => el.remove() })
         .on(".jsPinnedAudioPlayer", { element: (el) => el.remove() })
         .on(".jsAudioPlayer", { element: (el) => el.remove() })
         .on(".jsAudioFormat", { element: (el) => el.remove() })
         .on(".jsVideoPoster", { element: (el) => el.remove() })
         .on(".articleFooterLinks", { element: (el) => el.remove() })
-        .on(".pageNum", { element: (el) => el.remove() });
+        .on(".pageNum", { element: (el) => el.remove() })
+
+        // remove especificamente a barra do topo (a que tem du-bgColor--...)
+        // seu exemplo é <div id="tt2" class="... du-bgColor--amber-600 ...">
+        .on("#tt2", { element: (el) => el.remove() });
 
       const cleaned = await rewriter
         .transform(
@@ -127,14 +124,15 @@ export default {
         .text();
 
       const withPerguntas = processPerguntas(cleaned);
-      const stripped = extractDocIdAndBgAndStripHeader(withPerguntas);
-      const finalHtml = normalizeBlankLines(stripped);
+
+      // Coloca o prefixo na frente do restante
+      const finalHtml = normalizeBlankLines(prefix + withPerguntas);
 
       return new Response(finalHtml, {
         status: 200,
         headers: {
           ...corsHeaders,
-          "Content-Type": "text/plain;charset=UTF-8",
+          "Content-Type": "text/html;charset=UTF-8",
         },
       });
     } catch (error) {
