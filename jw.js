@@ -255,76 +255,91 @@ export default {
     };
     // <<<PROCESSADOR_6_FIM<<<
 
-    // >>>PROCESSADOR_7_INICIO<<<
-    const PROCESSADOR_7 = (html) => {
-      let out = html.replace(/\r\n/g, "\n");
+// >>>PROCESSADOR_7_INICIO<<<
+const PROCESSADOR_7 = (html) => {
+  let out = html.replace(/\r\n/g, "\n");
 
-      const normalizeTitle = (s) =>
-        (s || "")
-          .replace(/\s+/g, " ")
-          .trim()
-          .replace(/\s*:\s*$/, ":");
+  const stripTagsPreserveEmStrongBbl = (s) => {
+    let t = s;
+    t = t.replace(/<\s*em\s*>/gi, "__EMO__");
+    t = t.replace(/<\s*\/\s*em\s*>/gi, "__EMC__");
+    t = t.replace(/<\s*strong\s*>/gi, "__STO__");
+    t = t.replace(/<\s*\/\s*strong\s*>/gi, "__STC__");
+    t = t.replace(/<\s*bbl\s*>/gi, "__BBLO__");
+    t = t.replace(/<\s*\/\s*bbl\s*>/gi, "__BBLC__");
+    t = t.replace(/<[^>]+>/g, "");
+    t = t
+      .replace(/__EMO__/g, "<em>")
+      .replace(/__EMC__/g, "</em>")
+      .replace(/__STO__/g, "<strong>")
+      .replace(/__STC__/g, "</strong>")
+      .replace(/__BBLO__/g, "<bbl>")
+      .replace(/__BBLC__/g, "</bbl>");
+    return t;
+  };
 
-      const stripTagsPreserveEmStrongBbl = (s) => {
-        let t = s;
-        t = t.replace(/<\s*em\s*>/gi, "__EMO__");
-        t = t.replace(/<\s*\/\s*em\s*>/gi, "__EMC__");
-        t = t.replace(/<\s*strong\s*>/gi, "__STO__");
-        t = t.replace(/<\s*\/\s*strong\s*>/gi, "__STC__");
-        t = t.replace(/<\s*bbl\s*>/gi, "__BBLO__");
-        t = t.replace(/<\s*\/\s*bbl\s*>/gi, "__BBLC__");
-        t = t.replace(/<[^>]+>/g, "");
-        t = t
-          .replace(/__EMO__/g, "<em>")
-          .replace(/__EMC__/g, "</em>")
-          .replace(/__STO__/g, "<strong>")
-          .replace(/__STC__/g, "</strong>")
-          .replace(/__BBLO__/g, "<bbl>")
-          .replace(/__BBLC__/g, "</bbl>");
-        return t;
-      };
+  const titleCaseFromAllCaps = (s) => {
+    const raw = (s || "").replace(/\s+/g, " ").trim();
+    return raw
+      .split(" ")
+      .map((w) => {
+        const clean = w.replace(/[^\p{L}\p{N}]+/gu, "");
+        if (!clean) return w;
+        const isAllCaps =
+          clean === clean.toUpperCase() &&
+          clean !== clean.toLowerCase();
+        if (!isAllCaps) return w;
+        const first = w.slice(0, 1);
+        const rest = w.slice(1);
+        return first + rest.toLowerCase();
+      })
+      .join(" ")
+      .replace(/\s*:\s*$/, ":");
+  };
 
-      out = out.replace(
-        /<subtitulo>([\s\S]*?)<\/subtitulo>\s*<\/div>\s*<div\b[^>]*\bclass=(["'])[^"']*\bboxContent\b[^"']*\2[^>]*>\s*<ul>([\s\S]*?)<\/ul>[\s\S]*?<\/aside>\s*<\/div>/i,
-        (_m, subInner, _q, ulInner) => {
-          const title = normalizeTitle(stripTags(subInner));
+  out = out.replace(
+    /<subtitulo>([\s\S]*?)<\/subtitulo>\s*<\/div>\s*<div\b[^>]*\bboxContent\b[^>]*>\s*<ul>([\s\S]*?)<\/ul>\s*<\/div>\s*<\/aside>\s*<\/div>/i,
+    (_m, subInner, ulInner) => {
+      const titleRaw = subInner.replace(/<[^>]+>/g, " ");
+      const title = titleCaseFromAllCaps(titleRaw);
 
-          const items = [];
-          ulInner.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_mm, liInner) => {
-            const txt = stripTags(liInner).replace(/\s+/g, " ").trim();
-            if (txt) items.push(txt);
-            return "";
-          });
+      const items = [];
+      ulInner.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_mm, liInner) => {
+        const txt = liInner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+        if (txt) items.push(txt);
+        return "";
+      });
 
-          let bullets = "";
-          for (const it of items) bullets += `\n\n• ${it}`;
-          return `<recap>${title}${bullets}</recap>\n\n`;
-        }
-      );
+      let bullets = "";
+      for (const it of items) bullets += `\n\n• ${it}`;
 
-      out = out.replace(
-        /<div\b[^>]*\bid=(?:"|')tt39(?:"|')[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\1[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
-        (_m, _q, inner) => {
-          const txt = stripTags(inner).replace(/\s+/g, " ").trim();
-          return `<cantico>${txt}</cantico>\n\n`;
-        }
-      );
+      return `<recap>${title}${bullets}</recap>\n\n`;
+    }
+  );
 
-      out = out.replace(
-        /<div\b[^>]*\bclass=(["'])[^"']*\bgroupFootnote\b[^"']*\1[^>]*>[\s\S]*?<div\b[^>]*\bid=(?:"|')footnote\d+(?:"|')[^>]*>\s*<p\b[^>]*>([\s\S]*?)<\/p>\s*<\/div>[\s\S]*?<\/div>/i,
-        (_m, _q, inner) => {
-          let txt = stripTagsPreserveEmStrongBbl(inner).replace(/\s+/g, " ").trim();
-          txt = txt.replace(/^[a-z]\s+/i, "* ");
-          txt = txt.replace(/^\*\s+/, "* ");
-          return `<nota>${txt}</nota>\n\n`;
-        }
-      );
+  out = out.replace(
+    /<div\b[^>]*\bid=(?:"|')tt39(?:"|')[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\1[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
+    (_m, _q, inner) => {
+      const txt = inner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      return `<cantico>${txt}</cantico>\n\n`;
+    }
+  );
 
-      out = out.replace(/<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/article>\s*$/i, "");
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])[^"']*\bgroupFootnote\b[^"']*\1[^>]*>[\s\S]*?<div\b[^>]*\bid=(?:"|')footnote\d+(?:"|')[^>]*>\s*<p\b[^>]*>([\s\S]*?)<\/p>\s*<\/div>[\s\S]*?<\/div>/i,
+    (_m, _q, inner) => {
+      let txt = stripTagsPreserveEmStrongBbl(inner).replace(/\s+/g, " ").trim();
+      txt = txt.replace(/^[a-z]\s+/i, "* ");
+      txt = txt.replace(/^\*\s+/, "* ");
+      return `<nota>${txt}</nota>\n\n`;
+    }
+  );
 
-      return out;
-    };
-    // <<<PROCESSADOR_7_FIM<<<
+  out = out.replace(/<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/article>\s*$/i, "");
+
+  return out;
+};
+// <<<PROCESSADOR_7_FIM<<<
 
     try {
       const headers = new Headers({
