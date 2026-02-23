@@ -13,8 +13,8 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    const normalizeBlankLines = (s) => {
-      let out = s.replace(/\r\n/g, "\n");
+    const normalizeBlankLines = (text) => {
+      let out = String(text).replace(/\r\n/g, "\n");
       out = out.replace(/[ \t]+\n/g, "\n");
       out = out.replace(/\n{3,}/g, "\n\n");
       return out.trim() + "\n";
@@ -48,18 +48,12 @@ export default {
 
     const extractDocIdAndBg = (html) => {
       const mDoc = html.match(/\bdocId-(\d+)\b/i);
-      const mBg = html.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
       const docId = mDoc ? mDoc[1] : "";
-      const bg = mBg ? mBg[1] : "";
-      return `${docId}\n\n${bg}\n\n${html}`;
-    };
 
-    const stripLeadingToFirstContent = (html) => {
-      const m = html.match(
-        /<(?:h1|h2|h3|p|figure|div)\b/i
-      );
-      if (!m || typeof m.index !== "number") return html;
-      return html.slice(m.index);
+      const mBg = html.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
+      const bg = mBg ? mBg[1] : "";
+
+      return `${docId}\n\n${bg}\n\n`;
     };
 
     try {
@@ -122,11 +116,9 @@ export default {
         .text();
 
       const withPerguntas = processPerguntas(cleaned);
-      const stripped = stripLeadingToFirstContent(withPerguntas);
-      const finalBody = extractDocIdAndBg(stripped);
-      const finalText = normalizeBlankLines(finalBody);
+      const header = extractDocIdAndBg(withPerguntas);
 
-      return new Response(finalText, {
+      return new Response(normalizeBlankLines(header), {
         status: 200,
         headers: {
           ...corsHeaders,
