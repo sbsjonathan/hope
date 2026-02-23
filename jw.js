@@ -207,55 +207,159 @@ export default {
     };
     // <<<PROCESSADOR_5_FIM<<<
 
-    // >>>PROCESSADOR_6_INICIO<<<
-    const PROCESSADOR_6 = (html) => {
-      let out = html.replace(/\r\n/g, "\n");
+// >>>PROCESSADOR_6_INICIO<<<
+const PROCESSADOR_6 = (html) => {
+  let out = html.replace(/\r\n/g, "\n");
 
-      out = out.replace(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi, (_m, inner) => {
-        const txt = stripTags(inner).replace(/\s+/g, " ").trim();
-        return `\n\n<subtitulo>${txt}</subtitulo>\n\n`;
+  const stripTagsPreserveBasic = (s) => {
+    let t = s;
+    t = t.replace(/<\s*em\s*>/gi, "__EMO__");
+    t = t.replace(/<\s*\/\s*em\s*>/gi, "__EMC__");
+    t = t.replace(/<\s*strong\s*>/gi, "__STO__");
+    t = t.replace(/<\s*\/\s*strong\s*>/gi, "__STC__");
+    t = t.replace(/<\s*bbl\s*>/gi, "__BBLO__");
+    t = t.replace(/<\s*\/\s*bbl\s*>/gi, "__BBLC__");
+    t = t.replace(/<[^>]+>/g, "");
+    t = t
+      .replace(/__EMO__/g, "<em>")
+      .replace(/__EMC__/g, "</em>")
+      .replace(/__STO__/g, "<strong>")
+      .replace(/__STC__/g, "</strong>")
+      .replace(/__BBLO__/g, "<bbl>")
+      .replace(/__BBLC__/g, "</bbl>");
+    return t;
+  };
+
+  out = out.replace(
+    /<aside>([\s\S]*?)<\/aside>/i,
+    (_m, asideInner) => {
+      const tituloMatch = asideInner.match(/<h2>([\s\S]*?)<\/h2>/i);
+      const ulMatch = asideInner.match(/<ul>([\s\S]*?)<\/ul>/i);
+      if (!tituloMatch || !ulMatch) return _m;
+
+      const titulo = stripTagsPreserveBasic(tituloMatch[1])
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const items = [];
+      ulMatch[1].replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (_mm, liInner) => {
+        const txt = stripTagsPreserveBasic(liInner)
+          .replace(/\s+/g, " ")
+          .trim();
+        if (txt) items.push(txt);
+        return "";
       });
 
-      const buildFigure = (figureInner) => {
-        const spanMatch = figureInner.match(
-          /<span\b[^>]*\bclass=(["'])[^"']*\bjsRespImg\b[^"']*\1[^>]*>[\s\S]*?<\/span>/i
-        );
+      let bullets = "";
+      for (const it of items) bullets += `\n\n• ${it}`;
 
-        let src = "";
-        let alt = "";
+      return `<recap>${titulo}${bullets}</recap>\n\n`;
+    }
+  );
 
-        if (spanMatch) {
-          const spanTag = spanMatch[0];
-          const lg = spanTag.match(/\bdata-img-size-lg=(["'])([^"']+)\1/i);
-          const altM = spanTag.match(/\bdata-img-att-alt=(["'])([^"']*)\1/i);
-          if (lg) src = lg[2];
-          if (altM) alt = altM[2];
-        }
+  out = out.replace(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi, (_m, inner) => {
+    const txt = stripTagsPreserveBasic(inner)
+      .replace(/\s+/g, " ")
+      .trim();
+    return `\n\n<subtitulo>${txt}</subtitulo>\n\n`;
+  });
 
-        let caption = "";
-        const figcapMatch = figureInner.match(
-          /<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/i
-        );
-        if (figcapMatch) {
-          caption = stripTags(figcapMatch[1]).replace(/\s+/g, " ").trim();
-        }
+  const buildFigure = (figureInner) => {
+    const spanMatch = figureInner.match(
+      /<span\b[^>]*\bclass=(["'])[^"']*\bjsRespImg\b[^"']*\1[^>]*>[\s\S]*?<\/span>/i
+    );
 
-        const imgBlock = `  <img src="${src}"\n       alt="${alt}">`;
-        const capBlock = `  <figcaption>\n    ${caption}\n  </figcaption>`;
+    let src = "";
+    let alt = "";
 
-        return `\n\n<figure>\n${imgBlock}\n${capBlock}\n</figure>\n\n`;
-      };
+    if (spanMatch) {
+      const spanTag = spanMatch[0];
+      const lg = spanTag.match(/\bdata-img-size-lg=(["'])([^"']+)\1/i);
+      const altM = spanTag.match(/\bdata-img-att-alt=(["'])([^"']*)\1/i);
+      if (lg) src = lg[2];
+      if (altM) alt = altM[2];
+    }
 
-      out = out.replace(
-        /<div\b[^>]*\bid=(?:"|')f\d+(?:"|')[^>]*>\s*<figure>([\s\S]*?)<\/figure>\s*<\/div>\s*<hr\b[^>]*>/gi,
-        (_m, inner) => buildFigure(inner)
-      );
+    let caption = "";
+    const figcapMatch = figureInner.match(
+      /<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/i
+    );
+    if (figcapMatch) {
+      caption = stripTagsPreserveBasic(figcapMatch[1])
+        .replace(/\s+/g, " ")
+        .trim();
+    }
 
-      return out;
-    };
-    // <<<PROCESSADOR_6_FIM<<<
+    return `\n\n<figure>
+  <img src="${src}"
+       alt="${alt}">
+  <figcaption>
+    ${caption}
+  </figcaption>
+</figure>\n\n`;
+  };
 
+  out = out.replace(
+    /<div\b[^>]*\bid=(?:"|')f\d+(?:"|')[^>]*>\s*<figure>([\s\S]*?)<\/figure>\s*<\/div>\s*<hr\b[^>]*>/gi,
+    (_m, inner) => buildFigure(inner)
+  );
 
+  return out;
+};
+// <<<PROCESSADOR_6_FIM<<<
+
+// >>>PROCESSADOR_7_INICIO<<<
+const PROCESSADOR_7 = (html) => {
+  let out = html.replace(/\r\n/g, "\n");
+
+  const stripTagsPreserveBasic = (s) => {
+    let t = s;
+    t = t.replace(/<\s*em\s*>/gi, "__EMO__");
+    t = t.replace(/<\s*\/\s*em\s*>/gi, "__EMC__");
+    t = t.replace(/<\s*strong\s*>/gi, "__STO__");
+    t = t.replace(/<\s*\/\s*strong\s*>/gi, "__STC__");
+    t = t.replace(/<\s*bbl\s*>/gi, "__BBLO__");
+    t = t.replace(/<\s*\/\s*bbl\s*>/gi, "__BBLC__");
+    t = t.replace(/<[^>]+>/g, "");
+    t = t
+      .replace(/__EMO__/g, "<em>")
+      .replace(/__EMC__/g, "</em>")
+      .replace(/__STO__/g, "<strong>")
+      .replace(/__STC__/g, "</strong>")
+      .replace(/__BBLO__/g, "<bbl>")
+      .replace(/__BBLC__/g, "</bbl>");
+    return t;
+  };
+
+  out = out.replace(
+    /<div\b[^>]*\bid=(["'])tt39\1[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
+    (_m, _id, inner) => {
+      const txt = stripTagsPreserveBasic(inner)
+        .replace(/\s+/g, " ")
+        .trim();
+      return `<cantico>${txt}</cantico>\n\n`;
+    }
+  );
+
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>\s*<\/div>/i,
+    (_m, _q, inner) => {
+      let txt = stripTagsPreserveBasic(inner)
+        .replace(/\s+/g, " ")
+        .trim();
+      txt = txt.replace(/^[a-z]\s+/i, "* ");
+      return `<nota>${txt}</nota>\n\n`;
+    }
+  );
+
+  out = out.replace(
+    /<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*<\/article>\s*$/i,
+    ""
+  );
+
+  return out;
+};
+// <<<PROCESSADOR_7_FIM<<<
 
   // =========================
   // CANTICO FINAL
