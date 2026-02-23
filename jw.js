@@ -1,11 +1,8 @@
 export default {
   async fetch(request) {
-    // Preflight CORS (iPhone/Safari às vezes dispara)
+    // Preflight CORS
     if (request.method === "OPTIONS") {
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders(),
-      });
+      return new Response(null, { status: 204, headers: corsHeaders() });
     }
 
     const url = new URL(request.url);
@@ -21,81 +18,81 @@ export default {
       });
     }
 
-    try {
-      // 1) Tenta direto no jw.org
-      const direct = await fetch(targetUrl, {
-        redirect: "follow",
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-          "Accept":
-            "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-          "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-          "Cache-Control": "no-cache",
-          "Pragma": "no-cache",
-          "Upgrade-Insecure-Requests": "1",
-          "Referer": "https://www.jw.org/",
-        },
-        // Dica pro edge cache do Cloudflare do worker (não é obrigatório)
-        cf: { cacheTtl: 3600, cacheEverything: true },
-      });
+    // Headers “browser-like”
+    const H = {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+      "Accept":
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Cache-Control": "no-cache",
+      "Pragma": "no-cache",
+      "Upgrade-Insecure-Requests": "1",
+      "Referer": "https://www.jw.org/",
+    };
 
-      // Se vier “normal”, devolve o HTML
-      if (direct.ok && /text\/html/i.test(direct.headers.get("content-type") || "")) {
-        const html = await direct.text();
-        return new Response(html, {
-          status: 200,
-          headers: { ...corsHeaders(), "Content-Type": "text/html; charset=utf-8" },
+    // 3 tentativas (pra “pegar” quando o edge estiver de mau humor)
+    let last = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const resp = await fetch(targetUrl, {
+          redirect: "follow",
+          headers: H,
+          // Ajuda MUITO a estabilizar: menos hits repetidos no jw.org
+          cf: { cacheTtl: 1800, cacheEverything: true },
         });
-      }
 
-      // 2) Se bloqueou (403/520/5xx) ou não veio html, faz fallback
-      const status = direct.status;
+        last = resp;
 
-      const fallbackUrl = "https://r.jina.ai/http://www.jw.org" + new URL(targetUrl).pathname;
-      // Obs: r.jina.ai exige http:// na frente (mesmo que o site real seja https)
-      // Ex: https://r.jina.ai/http://www.jw.org/pt/...
+        // Só aceitamos HTML bruto de verdade
+        const ct = resp.headers.get("content-type") || "";
+        const isHtml = /text\/html/i.test(ct);
 
-      const fb = await fetch(fallbackUrl, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-          "Accept": "text/html,*/*;q=0.8",
-          "Accept-Language": "pt-BR,pt;q=0.9",
-          "Cache-Control": "no-cache",
-          "Pragma": "no-cache",
-        },
-        redirect: "follow",
-        cf: { cacheTtl: 3600, cacheEverything: true },
-      });
-
-      if (fb.ok) {
-        const html = await fb.text();
-        // r.jina.ai devolve o HTML “extraído” (quase sempre resolve quando jw.org bloqueia worker)
-        return new Response(html, {
-          status: 200,
-          headers: {
-            ...corsHeaders(),
-            "Content-Type": "text/html; charset=utf-8",
-            "X-Direct-Status": String(status), // só pra você ver que caiu no fallback
-          },
-        });
-      }
-
-      // Se até o fallback falhar:
-      return new Response(
-        `Falhou. Direto jw.org status=${status}. Fallback status=${fb.status}.`,
-        {
-          status: 502,
-          headers: { ...corsHeaders(), "Content-Type": "text/plain; charset=utf-8" },
+        if (resp.ok && isHtml) {
+          const html = await resp.text();
+          return new Response(html, {
+            status: 200,
+            headers: {
+              ...corsHeaders(),
+              "Content-Type": "text/html; charset=utf-8",
+              "X-Attempt": String(attempt),
+            },
+          });
         }
-      );
-    } catch (e) {
-      return new Response("Erro interno ao buscar HTML.", {
-        status: 500,
-        headers: { ...corsHeaders(), "Content-Type": "text/plain; charset=utf-8" },
-      });
+      } catch (e) {
+        // guarda e tenta de novo
+      }
+
+      // pausa pequena antes de tentar de novo
+      await sleep(250 * attempt);
     }
+
+    // Se falhou, devolve erro CLARO (pra você não achar que “voltou nada”)
+    const status = last ? last.status : 0;
+    const ct = last ? (last.headers.get("content-type") || "") : "";
+    let snippet = "";
+
+    try {
+      if (last) {
+        const txt = await last.text();
+        snippet = (txt || "").slice(0, 800);
+      }
+    } catch (e) {}
+
+    return new Response(
+      [
+        "FALHOU AO BUSCAR HTML BRUTO DO JW.ORG",
+        `status=${status}`,
+        `content-type=${ct}`,
+        "",
+        "snippet (primeiros 800 chars):",
+        snippet || "(sem corpo)",
+      ].join("\n"),
+      {
+        status: 502,
+        headers: { ...corsHeaders(), "Content-Type": "text/plain; charset=utf-8" },
+      }
+    );
   },
 };
 
@@ -105,4 +102,8 @@ function corsHeaders() {
     "Access-Control-Allow-Methods": "GET, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
 }
