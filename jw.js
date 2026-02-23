@@ -34,8 +34,6 @@ export default {
       return src.slice(start, end) + "</article>";
     };
 
-    const stripTags = (s) => s.replace(/<[^>]+>/g, "");
-
     const processPerguntas = (html) => {
       return html.replace(
         /<p\b[^>]*\bclass=(["'])[^"']*\bqu\b[^"']*\1[^>]*>\s*<strong[^>]*>\s*([\s\S]*?)\s*<\/strong>\s*([\s\S]*?)<\/p>/gi,
@@ -47,165 +45,6 @@ export default {
         }
       );
     };
-
-    // >>>PROCESSADOR_2_INICIO<<<
-    const PROCESSADOR_2 = (html) => {
-      let out = html.replace(/\r\n/g, "\n");
-
-      const docIdMatch = out.match(/\bdocId-(\d+)\b/i);
-      const docId = docIdMatch ? docIdMatch[1] : "";
-
-      const tt2OpenRe = /<div\b[^>]*\bid=(?:"|')tt2(?:"|')[^>]*>/i;
-      const tt2OpenMatch = out.match(tt2OpenRe);
-      if (!tt2OpenMatch) return out;
-
-      const tt2OpenIdx = tt2OpenMatch.index;
-      const tt2OpenTag = tt2OpenMatch[0];
-
-      const colorMatch = tt2OpenTag.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
-      const color = colorMatch ? colorMatch[1] : "";
-
-      const openEnd = tt2OpenIdx + tt2OpenTag.length;
-
-      let i = openEnd;
-      let depth = 1;
-      while (i < out.length) {
-        const nextOpen = out.slice(i).search(/<div\b/i);
-        const nextClose = out.slice(i).search(/<\/div\s*>/i);
-
-        if (nextClose < 0) break;
-
-        if (nextOpen >= 0 && nextOpen < nextClose) {
-          depth++;
-          i += nextOpen + 4;
-          continue;
-        }
-
-        depth--;
-        const closeStart = i + nextClose;
-        const closeEnd =
-          closeStart +
-          out.slice(closeStart).match(/<\/div\s*>/i)[0].length;
-
-        if (depth === 0) {
-          const inside = out.slice(openEnd, closeStart);
-          const rest = out.slice(closeEnd);
-
-          const prefix = `${docId}\n\n${color}\n\n`;
-          out = prefix + inside + rest;
-          return out;
-        }
-
-        i = closeEnd;
-      }
-
-      const prefix = `${docId}\n\n${color}\n\n`;
-      out = prefix + out.slice(openEnd);
-      return out;
-    };
-    // <<<PROCESSADOR_2_FIM<<<
-
-    // >>>PROCESSADOR_3_INICIO<<<
-    const PROCESSADOR_3 = (html) => {
-      let out = html.replace(/\r\n/g, "\n");
-
-      out = out.replace(
-        /<p\b[^>]*\bclass=(["'])[^"']*\bcontextTtl\b[^"']*\1[^>]*>[\s\S]*?<\/p>/i,
-        (m) => {
-          const txt = stripTags(m).replace(/\s+/g, " ").trim();
-          return `<estudo>${txt}</estudo>\n\n`;
-        }
-      );
-
-      out = out.replace(
-        /<div\b[^>]*\bid=(?:"|')tt4(?:"|')[^>]*>[\s\S]*?<\/div>/i,
-        (m) => {
-          const txt = stripTags(m).replace(/\s+/g, " ").trim();
-          return `<cantico>${txt}</cantico>\n\n`;
-        }
-      );
-
-      out = out.replace(
-        /<h1\b[^>]*>[\s\S]*?<\/h1>/i,
-        (m) => {
-          const txt = stripTags(m).replace(/\s+/g, " ").trim();
-          return `<tema>${txt}</tema>\n\n`;
-        }
-      );
-
-      return out;
-    };
-    // <<<PROCESSADOR_3_FIM<<<
-
-    // >>>PROCESSADOR_4_INICIO<<<
-    const PROCESSADOR_4 = (html) => {
-      let out = html.replace(/\r\n/g, "\n");
-
-      out = out.replace(
-        /<a\b[^>]*\bclass=(["'])[^"']*\bjsBibleLink\b[^"']*\1[^>]*>([\s\S]*?)<\/a>/gi,
-        (_m, _q, inner) => {
-          const txt = stripTags(inner).replace(/\s+/g, " ").trim();
-          return `<bbl>${txt}</bbl>`;
-        }
-      );
-
-      out = out.replace(
-        /<p\b[^>]*>\s*<span\b[^>]*\bclass=(["'])[^"']*\bparNum\b[^"']*\1[^>]*\bdata-pnum=(["'])(\d+)\2[^>]*>[\s\S]*?<\/span>\s*([\s\S]*?)<\/p>/gi,
-        (_m, _q1, _q2, num, restHtml) => {
-          let rest = restHtml || "";
-          rest = rest.replace(/^\s+/, "").replace(/^\u00a0+/, "");
-          rest = rest.replace(/\s+$/, "");
-          return `<paragrafo>${num} ${rest}</paragrafo>`;
-        }
-      );
-
-      return out;
-    };
-    // <<<PROCESSADOR_4_FIM<<<
-
-    // >>>PROCESSADOR_5_INICIO<<<
-    const PROCESSADOR_5 = (html) => {
-      let out = html.replace(/\r\n/g, "\n");
-
-      out = out.replace(
-        /<\/tema>\s*<\/header>[\s\S]*?(?=<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>|<p\b[^>]*\bclass=(?:"|')[^"']*\bthemeScrp\b[^"']*(?:"|')[^>]*>)/i,
-        "</tema>\n\n"
-      );
-
-      out = out.replace(
-        /<div\b[^>]*\bclass=(["'])[^"']*\bbodyTxt\b[^"']*\1[^>]*>/gi,
-        ""
-      );
-
-      const stripTagsExceptBbl = (s) => {
-        let t = s;
-        t = t.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__");
-        t = t.replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
-        t = t.replace(/<[^>]+>/g, "");
-        t = t.replace(/__BBL_OPEN__/g, "<bbl>");
-        t = t.replace(/__BBL_CLOSE__/g, "</bbl>");
-        return t;
-      };
-
-      out = out.replace(
-        /<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bthemeScrp\b[^"']*\1[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
-        (_m, _q, inner) => {
-          const txt = stripTagsExceptBbl(inner).replace(/\s+/g, " ").trim();
-          return `<citacao>${txt}</citacao>\n\n`;
-        }
-      );
-
-      out = out.replace(
-        /<div\b[^>]*\bid=(?:"|')tt11(?:"|')[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?<strong[^>]*>\s*OBJETIVO\s*<\/strong>[\s\S]*?<\/p>\s*<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
-        (_m, body) => {
-          const txt = stripTags(body).replace(/\s+/g, " ").trim();
-          return `<objetivo>OBJETIVO\n\n${txt}</objetivo>\n\n`;
-        }
-      );
-
-      return out;
-    };
-    // <<<PROCESSADOR_5_FIM<<<
 
     try {
       const headers = new Headers({
@@ -291,3 +130,165 @@ export default {
     }
   },
 };
+
+function stripTags(s) {
+  return s.replace(/<[^>]+>/g, "");
+}
+
+// >>>PROCESSADOR_2_INICIO<<<
+function PROCESSADOR_2(html) {
+  let out = html.replace(/\r\n/g, "\n");
+
+  const docIdMatch = out.match(/\bdocId-(\d+)\b/i);
+  const docId = docIdMatch ? docIdMatch[1] : "";
+
+  const tt2OpenRe = /<div\b[^>]*\bid=(?:"|')tt2(?:"|')[^>]*>/i;
+  const tt2OpenMatch = out.match(tt2OpenRe);
+  if (!tt2OpenMatch) return out;
+
+  const tt2OpenIdx = tt2OpenMatch.index;
+  const tt2OpenTag = tt2OpenMatch[0];
+
+  const colorMatch = tt2OpenTag.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
+  const color = colorMatch ? colorMatch[1] : "";
+
+  const openEnd = tt2OpenIdx + tt2OpenTag.length;
+
+  let i = openEnd;
+  let depth = 1;
+  while (i < out.length) {
+    const nextOpen = out.slice(i).search(/<div\b/i);
+    const nextClose = out.slice(i).search(/<\/div\s*>/i);
+
+    if (nextClose < 0) break;
+
+    if (nextOpen >= 0 && nextOpen < nextClose) {
+      depth++;
+      i += nextOpen + 4;
+      continue;
+    }
+
+    depth--;
+    const closeStart = i + nextClose;
+    const closeEnd =
+      closeStart + out.slice(closeStart).match(/<\/div\s*>/i)[0].length;
+
+    if (depth === 0) {
+      const inside = out.slice(openEnd, closeStart);
+      const rest = out.slice(closeEnd);
+
+      const prefix = `${docId}\n\n${color}\n\n`;
+      out = prefix + inside + rest;
+      return out;
+    }
+
+    i = closeEnd;
+  }
+
+  const prefix = `${docId}\n\n${color}\n\n`;
+  out = prefix + out.slice(openEnd);
+  return out;
+}
+// <<<PROCESSADOR_2_FIM<<<
+
+// >>>PROCESSADOR_3_INICIO<<<
+function PROCESSADOR_3(html) {
+  let out = html.replace(/\r\n/g, "\n");
+
+  out = out.replace(
+    /<p\b[^>]*\bclass=(["'])[^"']*\bcontextTtl\b[^"']*\1[^>]*>[\s\S]*?<\/p>/i,
+    (m) => {
+      const txt = stripTags(m).replace(/\s+/g, " ").trim();
+      return `<estudo>${txt}</estudo>\n\n`;
+    }
+  );
+
+  out = out.replace(
+    /<div\b[^>]*\bid=(?:"|')tt4(?:"|')[^>]*>[\s\S]*?<\/div>/i,
+    (m) => {
+      const txt = stripTags(m).replace(/\s+/g, " ").trim();
+      return `<cantico>${txt}</cantico>\n\n`;
+    }
+  );
+
+  out = out.replace(
+    /<h1\b[^>]*>[\s\S]*?<\/h1>/i,
+    (m) => {
+      const txt = stripTags(m).replace(/\s+/g, " ").trim();
+      return `<tema>${txt}</tema>\n\n`;
+    }
+  );
+
+  return out;
+}
+// <<<PROCESSADOR_3_FIM<<<
+
+// >>>PROCESSADOR_4_INICIO<<<
+function PROCESSADOR_4(html) {
+  let out = html.replace(/\r\n/g, "\n");
+
+  out = out.replace(
+    /<a\b[^>]*\bclass=(["'])[^"']*\bjsBibleLink\b[^"']*\1[^>]*>([\s\S]*?)<\/a>/gi,
+    (_m, _q, inner) => {
+      const txt = stripTags(inner).replace(/\s+/g, " ").trim();
+      return `<bbl>${txt}</bbl>`;
+    }
+  );
+
+  out = out.replace(
+    /<p\b[^>]*>\s*<span\b[^>]*\bclass=(["'])[^"']*\bparNum\b[^"']*\1[^>]*\bdata-pnum=(["'])(\d+)\2[^>]*>[\s\S]*?<\/span>\s*([\s\S]*?)<\/p>/gi,
+    (_m, _q1, _q2, num, restHtml) => {
+      let rest = restHtml || "";
+      rest = rest.replace(/^\s+/, "").replace(/^\u00a0+/, "");
+      rest = rest.replace(/\s+$/, "");
+      return `<paragrafo>${num} ${rest}</paragrafo>`;
+    }
+  );
+
+  return out;
+}
+// <<<PROCESSADOR_4_FIM<<<
+
+// >>>PROCESSADOR_5_INICIO<<<
+function PROCESSADOR_5(html) {
+  let out = html.replace(/\r\n/g, "\n");
+
+  out = out.replace(
+    /<\/tema>\s*<\/header>[\s\S]*?(?=<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>|<p\b[^>]*\bclass=(?:"|')[^"']*\bthemeScrp\b[^"']*(?:"|')[^>]*>)/i,
+    "</tema>\n\n"
+  );
+
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])[^"']*\bbodyTxt\b[^"']*\1[^>]*>/gi,
+    ""
+  );
+
+  const stripTagsExceptBbl = (s) => {
+    let t = s;
+    t = t.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__");
+    t = t.replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
+    t = t.replace(/<[^>]+>/g, "");
+    t = t.replace(/__BBL_OPEN__/g, "<bbl>");
+    t = t.replace(/__BBL_CLOSE__/g, "</bbl>");
+    return t;
+  };
+
+  out = out.replace(
+    /<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bthemeScrp\b[^"']*\1[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
+    (_m, _q, inner) => {
+      const txt = stripTagsExceptBbl(inner).replace(/\s+/g, " ").trim();
+      return `<citacao>${txt}</citacao>\n\n`;
+    }
+  );
+
+  out = out.replace(
+    /<div\b[^>]*\bid=(?:"|')tt11(?:"|')[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?<strong[^>]*>\s*OBJETIVO\s*<\/strong>[\s\S]*?<\/p>\s*<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
+    (_m, body) => {
+      const txt = stripTags(body).replace(/\s+/g, " ").trim();
+      return `<objetivo>OBJETIVO\n\n${txt}</objetivo>\n\n`;
+    }
+  );
+
+  return out;
+}
+// <<<PROCESSADOR_5_FIM<<<
