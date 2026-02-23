@@ -46,24 +46,6 @@ export default {
       );
     };
 
-    // >>> NOVO: extrair docId e du-bgColor diretamente do HTML do article <<<
-    const extractDocId = (articleHtml) => {
-      // procura docId-2026240 dentro do class do <article ...>
-      const m = articleHtml.match(
-        /<article\b[^>]*\bclass=(["'])([\s\S]*?)\1[^>]*>/i
-      );
-      if (!m) return "";
-      const classStr = m[2] || "";
-      const doc = classStr.match(/\bdocId-(\d+)\b/i);
-      return doc ? doc[1] : "";
-    };
-
-    const extractBgColor = (articleHtml) => {
-      // procura du-bgColor--amber-600 em qualquer class do trecho do article
-      const m = articleHtml.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
-      return m ? m[1] : "";
-    };
-
     try {
       const headers = new Headers({
         "User-Agent":
@@ -106,10 +88,6 @@ export default {
 
       const onlyArticle = keepOnlyArticle(html);
 
-      // >>> NOVO: pegar os dois valores ANTES de limpar <<<
-      const docId = extractDocId(onlyArticle);
-      const bgColor = extractBgColor(onlyArticle);
-
       const rewriter = new HTMLRewriter()
         .on(".gen-field", { element: (el) => el.remove() })
         .on(".jsPinnedAudioPlayer", { element: (el) => el.remove() })
@@ -128,11 +106,7 @@ export default {
         .text();
 
       const withPerguntas = processPerguntas(cleaned);
-
-      // >>> NOVO: prefixo com as duas infos, com linha em branco entre elas <<<
-      const prefix = `${docId}\n\n${bgColor}\n\n`;
-
-      const finalHtml = normalizeBlankLines(prefix + withPerguntas);
+      const finalHtml = normalizeBlankLines(withPerguntas);
 
       return new Response(finalHtml, {
         status: 200,
