@@ -22,7 +22,9 @@ export default {
 
     const keepOnlyArticle = (html) => {
       const src = html.replace(/\r\n/g, "\n");
-      const start = src.search(/<article\b[^>]*\bid=(?:"|')article(?:"|')[^>]*>/i);
+      const start = src.search(
+        /<article\b[^>]*\bid=(?:"|')article(?:"|')[^>]*>/i
+      );
       if (start < 0) return src;
 
       const endMatch = src.slice(start).match(/<\/article\s*>/i);
@@ -45,6 +47,61 @@ export default {
         }
       );
     };
+
+    // >>>PROCESSADOR_2_INICIO<<<
+    const PROCESSADOR_2 = (html) => {
+      let out = html.replace(/\r\n/g, "\n");
+
+      const docIdMatch = out.match(/\bdocId-(\d+)\b/i);
+      const docId = docIdMatch ? docIdMatch[1] : "";
+
+      const tt2OpenRe = /<div\b[^>]*\bid=(?:"|')tt2(?:"|')[^>]*>/i;
+      const tt2OpenMatch = out.match(tt2OpenRe);
+      if (!tt2OpenMatch) return out;
+
+      const tt2OpenIdx = tt2OpenMatch.index;
+      const tt2OpenTag = tt2OpenMatch[0];
+
+      const colorMatch = tt2OpenTag.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
+      const color = colorMatch ? colorMatch[1] : "";
+
+      const openEnd = tt2OpenIdx + tt2OpenTag.length;
+
+      let i = openEnd;
+      let depth = 1;
+      while (i < out.length) {
+        const nextOpen = out.slice(i).search(/<div\b/i);
+        const nextClose = out.slice(i).search(/<\/div\s*>/i);
+
+        if (nextClose < 0) break;
+
+        if (nextOpen >= 0 && nextOpen < nextClose) {
+          depth++;
+          i += nextOpen + 4;
+          continue;
+        }
+
+        depth--;
+        const closeStart = i + nextClose;
+        const closeEnd = closeStart + out.slice(closeStart).match(/<\/div\s*>/i)[0].length;
+
+        if (depth === 0) {
+          const inside = out.slice(openEnd, closeStart);
+          const rest = out.slice(closeEnd);
+
+          const prefix = `${docId}\n\n${color}\n\n`;
+          out = prefix + inside + rest;
+          return out;
+        }
+
+        i = closeEnd;
+      }
+
+      const prefix = `${docId}\n\n${color}\n\n`;
+      out = prefix + out.slice(openEnd);
+      return out;
+    };
+    // <<<PROCESSADOR_2_FIM<<<
 
     try {
       const headers = new Headers({
@@ -105,7 +162,8 @@ export default {
         )
         .text();
 
-      const withPerguntas = processPerguntas(cleaned);
+      const afterP2 = PROCESSADOR_2(cleaned);
+      const withPerguntas = processPerguntas(afterP2);
       const finalHtml = normalizeBlankLines(withPerguntas);
 
       return new Response(finalHtml, {
