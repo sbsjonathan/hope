@@ -285,13 +285,14 @@ function PROCESSADOR_4(html) {
 
       rest = rest.replace(
         /<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi,
-        " * "
+        " *"
       );
 
+      rest = rest.replace(/\s{2,}/g, " ");
       rest = rest.replace(/^\s+/, "").replace(/^\u00a0+/, "");
       rest = rest.replace(/\s+$/, "");
 
-      return `<paragrafo>${num} ${rest}</paragrafo>`;
+      return `\n\n<paragrafo>${num} ${rest}</paragrafo>\n\n`;
     }
   );
 
