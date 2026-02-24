@@ -1,7 +1,7 @@
 export default {
   async fetch(request, env, ctx) {
     const targetUrl =
-      "https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-janeiro-2026/Você-é-capaz-de-lutar-contra-sentimentos-negativos/";
+  "https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-janeiro-2026/Voc%C3%AA-%C3%A9-capaz-de-lutar-contra-sentimentos-negativos/";
 
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
