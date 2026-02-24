@@ -1,7 +1,7 @@
 export default {
   async fetch(request, env, ctx) {
     const targetUrl =
-      "https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-janeiro-2026/Continue-cuidando-da-sua-necessidade-espiritual/";
+      "https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-janeiro-2026/Você-é-capaz-de-lutar-contra-sentimentos-negativos/";
 
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
