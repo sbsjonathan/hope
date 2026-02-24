@@ -408,7 +408,7 @@ function PROCESSADOR_7(html) {
     ""
   );
 
-  out = out.replace(/\n(?:\s*<\/div>\s*){2,}\s*<\/article>\s*$/i, "\n</article>\n");
+    out = out.replace(/<\/?article\b[^>]*>/gi, "");
 
   return out;
 }
