@@ -109,7 +109,8 @@ export default {
       const afterP3 = PROCESSADOR_3(afterP2);
       const afterP4 = PROCESSADOR_4(afterP3);
       const afterP5 = PROCESSADOR_5(afterP4);
-      const withPerguntas = processPerguntas(afterP5);
+      const afterP6 = PROCESSADOR_6(afterP5);
+      const withPerguntas = processPerguntas(afterP6);
       const finalHtml = normalizeBlankLines(withPerguntas);
 
       return new Response(finalHtml, {
@@ -292,3 +293,35 @@ function PROCESSADOR_5(html) {
   return out;
 }
 // <<<PROCESSADOR_5_FIM<<<
+
+// >>>PROCESSADOR_6_INICIO<<<
+function PROCESSADOR_6(html) {
+  let out = html.replace(/\r\n/g, "\n");
+
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])[^"']*\bblockTeach\b[^"']*\1[^>]*>\s*<aside\b[^>]*>[\s\S]*?<\/aside>\s*<\/div>/gi,
+    (m) => {
+      const h2m = m.match(/<h2\b[^>]*>[\s\S]*?<\/h2>/i);
+      const titulo = h2m ? stripTags(h2m[0]).replace(/\s+/g, " ").trim() : "";
+
+      const itens = [];
+      m.replace(
+        /<li\b[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/li>/gi,
+        (_mm, pInner) => {
+          const t = stripTags(pInner).replace(/\s+/g, " ").trim();
+          if (t) itens.push(t);
+          return _mm;
+        }
+      );
+
+      if (!titulo && itens.length === 0) return m;
+
+      const bullets = itens.map((t) => `- ${t}`).join("\n");
+      const conteudo = `${titulo}\n\n${bullets}`.trim();
+      return `\n\n<recap>${conteudo}</recap>\n\n`;
+    }
+  );
+
+  return out;
+}
+// <<<PROCESSADOR_6_FIM<<<
