@@ -316,8 +316,9 @@ function PROCESSADOR_6(html) {
 
       if (!titulo && itens.length === 0) return m;
 
-      const bullets = itens.map((t) => `- ${t}`).join("\n");
-      const conteudo = `${titulo}\n\n${bullets}`.trim();
+      const bullets = itens.map((t) => `\n\n• ${t}`).join("");
+      const conteudo = `${titulo}${bullets}`.trim();
+
       return `\n\n<recap>${conteudo}</recap>\n\n`;
     }
   );
