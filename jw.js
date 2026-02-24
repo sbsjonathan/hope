@@ -361,29 +361,26 @@ function PROCESSADOR_7(html) {
   let out = html.replace(/\r\n/g, "\n");
 
   out = out.replace(
-    /<h2\b[^>]*\bclass=(["'])[^"']*\bdu-textAlign--center\b[^"']*\1[^>]*>[\s\S]*?<\/h2>/gi,
+    /<h2\b[^>]*>[\s\S]*?<\/h2>/gi,
     (m) => {
       const txt = stripTags(m).replace(/\s+/g, " ").trim();
-      return txt ? `\n\n<subtitulo>${txt}</subtitulo>\n\n` : "";
+      if (!txt) return "";
+      return `\n\n<subtitulo>${txt}</subtitulo>\n\n`;
     }
   );
 
   out = out.replace(
-    /<div\b[^>]*\bid=(["'])tt\d+\1[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\2[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\3[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi,
-    (_m, _q1, _q2, _q3, inner) => {
+    /<div\b[^>]*\bid=(["'])tt39\1[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\2[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi,
+    (_m, _q1, _q2, inner) => {
       let s = inner || "";
       s = s.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1");
       s = stripTags(s).replace(/\s+/g, " ").trim();
       if (!s) return "";
-      if (!/\bCÂNTICO\b/i.test(s)) return _m;
       return `\n\n<cantico>${s}</cantico>\n\n`;
     }
   );
 
-  out = out.replace(
-    /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi,
-    ""
-  );
+  out = out.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
 
   out = out.replace(/\s+\n/g, "\n");
   out = out.replace(/\n{3,}/g, "\n\n");
