@@ -360,35 +360,29 @@ function PROCESSADOR_7(html) {
   let out = html.replace(/\r\n/g, "\n");
 
   out = out.replace(
-    /<h2\b[^>]*\bid=(["'])p\d+\1[^>]*\bdata-pid=(["'])\d+\2[^>]*>[\s\S]*?<\/h2>/gi,
+    /<h2\b[^>]*>[\s\S]*?<\/h2>/gi,
     (m) => {
       const txt = stripTags(m).replace(/\s+/g, " ").trim();
+      if (!txt) return "";
       return `\n\n<subtitulo>${txt}</subtitulo>\n\n`;
     }
   );
 
   out = out.replace(
-    /<div\b[^>]*\bid=(["'])tt39\1[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\2[^>]*>[\s\S]*?<\/p>[\s\S]*?<\/div>/gi,
-    (m) => {
-      const strongMatch = m.match(/<strong\b[^>]*>([\s\S]*?)<\/strong>/i);
-      const strongTxt = strongMatch
-        ? stripTags(strongMatch[0]).replace(/\s+/g, " ").trim()
-        : "";
-
-      const pMatch = m.match(/<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\1[^>]*>([\s\S]*?)<\/p>/i);
-      let pInner = pMatch ? pMatch[2] : "";
-      pInner = pInner
-        .replace(/<strong\b[^>]*>[\s\S]*?<\/strong>/gi, "")
-        .replace(/<\/?a\b[^>]*>/gi, "");
-
-      const restTxt = stripTags(pInner).replace(/\s+/g, " ").trim();
-
-      const txt = `${strongTxt}${strongTxt && restTxt ? " " : ""}${restTxt}`.trim();
-      if (!txt) return m;
-
-      return `\n\n<cantico>${txt}</cantico>\n\n`;
+    /<div\b[^>]*\bid=(["'])tt39\1[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\2[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi,
+    (_m, _q1, _q2, inner) => {
+      let s = inner || "";
+      s = s.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1");
+      s = stripTags(s).replace(/\s+/g, " ").trim();
+      if (!s) return "";
+      return `\n\n<cantico>${s}</cantico>\n\n`;
     }
   );
+
+  out = out.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
+
+  out = out.replace(/\s+\n/g, "\n");
+  out = out.replace(/\n{3,}/g, "\n\n");
 
   return out;
 }
