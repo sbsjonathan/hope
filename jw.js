@@ -332,7 +332,7 @@ function PROCESSADOR_5(html) {
   );
 
   out = out.replace(
-    /<div\b[^>]*\bid=(?:"|')tt11(?:"|')[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?<strong[^>]*>\s*OBJETIVO\s*<\/strong>[\s\S]*?<\/p>\s*<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
+    /<div\b[^>]*\bid=(?:"|')tt(?:10|11)(?:"|')[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?<strong[^>]*>\s*OBJETIVO\s*<\/strong>[\s\S]*?<\/p>\s*<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
     (_m, body) => {
       const txt = stripTags(body).replace(/\s+/g, " ").trim();
       return `<objetivo>OBJETIVO\n\n${txt}</objetivo>\n\n`;
