@@ -418,8 +418,8 @@ function PROCESSADOR_7(html) {
   );
 
   out = out.replace(
-    /<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\1[^>]*>\s*<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\2[^>]*>([\s\S]*?)<\/p>\s*<\/div>/gi,
-    (m, _q1, _q2, inner) => {
+    /(</recap>\s*)<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\2[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\3[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi,
+    (_m, recapEnd, _q1, _q2, inner) => {
       let s = inner || "";
       s = s.replace(
         /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi,
@@ -428,32 +428,38 @@ function PROCESSADOR_7(html) {
       s = s.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1");
       s = stripTags(s).replace(/\s+/g, " ").trim();
 
-      if (!s) return m;
-      if (!/\bCÂNTICO\b/i.test(s)) return m;
+      if (!s) return recapEnd;
+      if (!/\bCÂNTICO\b/i.test(s)) return recapEnd + _m.slice(recapEnd.length);
 
-      return `\n\n<cantico>${s}</cantico>\n\n`;
+      return `${recapEnd}\n\n<cantico>${s}</cantico>\n\n`;
     }
   );
 
   out = out.replace(
     /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi,
     (m) => {
-      const pMatch = m.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i);
-      if (!pMatch) return m;
+      const notas = [];
 
-      let inner = pMatch[1] || "";
+      m.replace(
+        /<div\b[^>]*\bid=(["'])footnote\d+\1[^>]*>\s*<p\b[^>]*>([\s\S]*?)<\/p>\s*<\/div>/gi,
+        (_mm, _q, inner) => {
+          let s = inner || "";
 
-      inner = inner.replace(
-        /<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i,
-        "*"
+          s = s.replace(
+            /<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i,
+            "*"
+          );
+
+          s = s.replace(/\s+/g, " ").trim();
+          if (s) notas.push(s);
+
+          return _mm;
+        }
       );
 
-      inner = inner.replace(/\s+/g, " ").trim();
+      if (notas.length === 0) return "";
 
-      const note = inner.trim();
-      if (!note) return "";
-
-      return `\n\n<nota>${note}</nota>\n\n`;
+      return notas.map((n) => `\n\n<nota>${n}</nota>\n\n`).join("");
     }
   );
 
