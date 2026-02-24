@@ -34,18 +34,6 @@ export default {
       return src.slice(start, end) + "</article>";
     };
 
-    const processPerguntas = (html) => {
-      return html.replace(
-        /<p\b[^>]*\bclass=(["'])[^"']*\bqu\b[^"']*\1[^>]*>\s*<strong[^>]*>\s*([\s\S]*?)\s*<\/strong>\s*([\s\S]*?)<\/p>/gi,
-        (_m, _q, strongPart, rest) => {
-          const num = stripTags(strongPart).replace(/\s+/g, " ").trim();
-          const texto = stripTags(rest).replace(/\s+/g, " ").trim();
-          const conteudo = (num ? num + " " : "") + texto;
-          return `\n\n<pergunta>${conteudo}</pergunta>\n\n`;
-        }
-      );
-    };
-
     try {
       const headers = new Headers({
         "User-Agent":
@@ -75,7 +63,7 @@ export default {
 
       if (!response.ok) {
         return new Response(
-          `Erro do site alvo: Status ${response.status}\n\nCódigo-fonte do erro:\n${html}`,
+          `Erro do site alvo: Status ${response.status}\n\nCÃ³digo-fonte do erro:\n${html}`,
           {
             status: response.status,
             headers: {
@@ -135,6 +123,54 @@ export default {
 
 function stripTags(s) {
   return s.replace(/<[^>]+>/g, "");
+}
+
+function processPerguntas(html) {
+  const preserveAllowedTags = (s) => {
+    let t = (s || "").replace(/\r\n/g, "\n");
+
+    t = t.replace(
+      /<a\b[^>]*\bclass=(["'])[^"']*\bjsBibleLink\b[^"']*\1[^>]*>([\s\S]*?)<\/a>/gi,
+      (_m, _q, inner) => {
+        const txt = stripTags(inner).replace(/\s+/g, " ").trim();
+        return `<bbl>${txt}</bbl>`;
+      }
+    );
+
+    t = t.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__");
+    t = t.replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
+
+    t = t.replace(/<\s*strong\s*>/gi, "__STRONG_OPEN__");
+    t = t.replace(/<\s*\/\s*strong\s*>/gi, "__STRONG_CLOSE__");
+
+    t = t.replace(/<\s*em\s*>/gi, "__EM_OPEN__");
+    t = t.replace(/<\s*\/\s*em\s*>/gi, "__EM_CLOSE__");
+
+    t = t.replace(/<[^>]+>/g, "");
+
+    t = t.replace(/__BBL_OPEN__/g, "<bbl>");
+    t = t.replace(/__BBL_CLOSE__/g, "</bbl>");
+
+    t = t.replace(/__STRONG_OPEN__/g, "<strong>");
+    t = t.replace(/__STRONG_CLOSE__/g, "</strong>");
+
+    t = t.replace(/__EM_OPEN__/g, "<em>");
+    t = t.replace(/__EM_CLOSE__/g, "</em>");
+
+    t = t.replace(/\s+/g, " ").trim();
+
+    return t;
+  };
+
+  return html.replace(
+    /<p\b[^>]*\bclass=(["'])[^"']*\bqu\b[^"']*\1[^>]*>\s*<strong[^>]*>\s*([\s\S]*?)\s*<\/strong>\s*([\s\S]*?)<\/p>/gi,
+    (_m, _q, strongPart, rest) => {
+      const num = stripTags(strongPart).replace(/\s+/g, " ").trim();
+      const texto = preserveAllowedTags(rest);
+      const conteudo = (num ? num + " " : "") + texto;
+      return `\n\n<pergunta>${conteudo}</pergunta>\n\n`;
+    }
+  );
 }
 
 // >>>PROCESSADOR_2_INICIO<<<
@@ -317,7 +353,7 @@ function PROCESSADOR_6(html) {
 
       if (!titulo && itens.length === 0) return m;
 
-      const bullets = itens.map((t) => `\n\n• ${t}`).join("");
+      const bullets = itens.map((t) => `\n\nâ¢ ${t}`).join("");
       const conteudo = `${titulo}${bullets}`.trim();
 
       return `\n\n<recap>${conteudo}</recap>\n\n`;
@@ -380,7 +416,7 @@ function PROCESSADOR_7(html) {
       s = stripTags(s).replace(/\s+/g, " ").trim();
 
       if (!s) return m;
-      if (!/\bCÂNTICO\b/i.test(s)) return m;
+      if (!/\bCÃNTICO\b/i.test(s)) return m;
 
       return `\n\n<cantico>${s}</cantico>\n\n`;
     }
