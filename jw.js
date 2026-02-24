@@ -384,9 +384,31 @@ function PROCESSADOR_7(html) {
   );
 
   out = out.replace(
+    /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>\s*<div\b[^>]*\bid=(["'])footnote\d+\2[^>]*>\s*<p\b[^>]*>([\s\S]*?)<\/p>\s*<\/div>\s*<\/div>/gi,
+    (_m, _q1, _q2, inner) => {
+      let s = inner || "";
+
+      s = s.replace(
+        /<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i,
+        "*"
+      );
+
+      s = s.replace(/\s*\*\*\s*/g, " ");
+
+      s = s.replace(/\s+/g, " ").trim();
+
+      if (!s) return "";
+
+      return `\n\n<nota>${s}</nota>\n\n`;
+    }
+  );
+
+  out = out.replace(
     /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi,
     ""
   );
+
+  out = out.replace(/\n(?:\s*<\/div>\s*){2,}\s*<\/article>\s*$/i, "\n</article>\n");
 
   return out;
 }
