@@ -277,8 +277,20 @@ function PROCESSADOR_4(html) {
     /<p\b[^>]*>\s*<span\b[^>]*\bclass=(["'])[^"']*\bparNum\b[^"']*\1[^>]*\bdata-pnum=(["'])(\d+)\2[^>]*>[\s\S]*?<\/span>\s*([\s\S]*?)<\/p>/gi,
     (_m, _q1, _q2, num, restHtml) => {
       let rest = restHtml || "";
+
+      rest = rest.replace(
+        /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi,
+        ""
+      );
+
+      rest = rest.replace(
+        /<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi,
+        " * "
+      );
+
       rest = rest.replace(/^\s+/, "").replace(/^\u00a0+/, "");
       rest = rest.replace(/\s+$/, "");
+
       return `<paragrafo>${num} ${rest}</paragrafo>`;
     }
   );
