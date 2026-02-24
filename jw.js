@@ -435,33 +435,42 @@ function PROCESSADOR_7(html) {
     }
   );
 
+  const stripTagsExceptStrongEm = (s) => {
+    let t = s || "";
+    t = t.replace(/<\s*strong\s*>/gi, "__STRONG_OPEN__");
+    t = t.replace(/<\s*\/\s*strong\s*>/gi, "__STRONG_CLOSE__");
+    t = t.replace(/<\s*em\s*>/gi, "__EM_OPEN__");
+    t = t.replace(/<\s*\/\s*em\s*>/gi, "__EM_CLOSE__");
+    t = t.replace(/<[^>]+>/g, "");
+    t = t.replace(/__STRONG_OPEN__/g, "<strong>");
+    t = t.replace(/__STRONG_CLOSE__/g, "</strong>");
+    t = t.replace(/__EM_OPEN__/g, "<em>");
+    t = t.replace(/__EM_CLOSE__/g, "</em>");
+    return t;
+  };
+
   out = out.replace(
-    /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi,
-    (m) => {
-      const notas = [];
+    /<div\b[^>]*\bid=(["'])footnote\d+\1[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi,
+    (_m, _q, inner) => {
+      let s = inner || "";
 
-      m.replace(
-        /<div\b[^>]*\bid=(["'])footnote\d+\1[^>]*>\s*<p\b[^>]*>([\s\S]*?)<\/p>\s*<\/div>/gi,
-        (_mm, _q, inner) => {
-          let s = inner || "";
-
-          s = s.replace(
-            /<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i,
-            "*"
-          );
-
-          s = s.replace(/\s+/g, " ").trim();
-          if (s) notas.push(s);
-
-          return _mm;
-        }
+      s = s.replace(
+        /<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i,
+        "*"
       );
 
-      if (notas.length === 0) return "";
+      s = stripTagsExceptStrongEm(s).replace(/\s+/g, " ").trim();
+      if (!s) return "";
 
-      return notas.map((n) => `\n\n<nota>${n}</nota>\n\n`).join("");
+      return `\n\n<nota>${s}</nota>\n\n`;
     }
   );
+
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>/gi,
+    ""
+  );
+  out = out.replace(/<\/div>\s*(?=\s*<nota>)/gi, "");
 
   out = out.replace(/<\/?article\b[^>]*>/gi, "");
 
