@@ -353,8 +353,10 @@ function PROCESSADOR_6(html) {
 
       if (!titulo && itens.length === 0) return m;
 
-      const bullets = itens.map((t) => `\n\nâ¢ ${t}`).join("");
-      const conteudo = `${titulo}${bullets}`.trim();
+      const bullets = itens.map((t) => `• ${t}`).join("\n\n");
+      const conteudo = titulo
+        ? `${titulo}\n\n${bullets}`.trimEnd()
+        : `${bullets}`.trimEnd();
 
       return `\n\n<recap>${conteudo}</recap>\n\n`;
     }
@@ -405,8 +407,8 @@ function PROCESSADOR_7(html) {
   );
 
   out = out.replace(
-    /<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\1[^>]*>\s*<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\2[^>]*>([\s\S]*?)<\/p>\s*<\/div>/gi,
-    (m, _q1, _q2, inner) => {
+    /(</recap>\s*)<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\2[^>]*>\s*<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\3[^>]*>([\s\S]*?)<\/p>\s*<\/div>/gi,
+    (_m, recapEnd, _q1, _q2, inner) => {
       let s = inner || "";
       s = s.replace(
         /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi,
@@ -415,10 +417,10 @@ function PROCESSADOR_7(html) {
       s = s.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1");
       s = stripTags(s).replace(/\s+/g, " ").trim();
 
-      if (!s) return m;
-      if (!/\bCÃNTICO\b/i.test(s)) return m;
+      if (!s) return recapEnd;
+      if (!/\bCÂNTICO\b/i.test(s)) return recapEnd + inner;
 
-      return `\n\n<cantico>${s}</cantico>\n\n`;
+      return `${recapEnd}\n\n<cantico>${s}</cantico>\n\n`;
     }
   );
 
@@ -436,7 +438,6 @@ function PROCESSADOR_7(html) {
       );
 
       inner = inner.replace(/\s+/g, " ").trim();
-
       const note = inner.trim();
       if (!note) return "";
 
