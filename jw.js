@@ -299,18 +299,51 @@ function PROCESSADOR_6(html) {
   let out = html.replace(/\r\n/g, "\n");
 
   out = out.replace(
+    /<div\b[^>]*\bclass=(["'])[^"']*\bblockTeach\b[^"']*\1[^>]*>\s*<aside\b[^>]*>[\s\S]*?<\/aside>\s*<\/div>/gi,
+    (m) => {
+      const h2m = m.match(/<h2\b[^>]*>[\s\S]*?<\/h2>/i);
+      const titulo = h2m ? stripTags(h2m[0]).replace(/\s+/g, " ").trim() : "";
+
+      const itens = [];
+      m.replace(
+        /<li\b[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/li>/gi,
+        (_mm, pInner) => {
+          const t = stripTags(pInner).replace(/\s+/g, " ").trim();
+          if (t) itens.push(t);
+          return _mm;
+        }
+      );
+
+      if (!titulo && itens.length === 0) return m;
+
+      const bullets = itens.map((t) => `\n\n• ${t}`).join("");
+      const conteudo = `${titulo}${bullets}`.trim();
+
+      return `\n\n<recap>${conteudo}</recap>\n\n`;
+    }
+  );
+
+  out = out.replace(
     /<div\b[^>]*\bid=(["'])f\d+\1[^>]*>[\s\S]*?<figure\b[^>]*>[\s\S]*?<span\b[^>]*\bclass=(["'])[^"']*\bjsRespImg\b[^"']*\2[^>]*>[\s\S]*?<\/span>[\s\S]*?<figcaption\b[^>]*>[\s\S]*?<\/figcaption>[\s\S]*?<\/figure>[\s\S]*?<\/div>\s*(?:<hr\b[^>]*>\s*)?/gi,
     (m) => {
       const lgMatch = m.match(/\bdata-img-size-lg=(["'])(.*?)\1/i);
       const src = lgMatch ? lgMatch[2] : "";
       if (!src) return m;
 
-      const pMatch = m.match(/<figcaption\b[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/figcaption>/i);
+      const pMatch = m.match(
+        /<figcaption\b[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/figcaption>/i
+      );
       let pInner = pMatch ? pMatch[1] : "";
       if (!pInner) return m;
 
-      pInner = pInner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
-      pInner = pInner.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi, " * ");
+      pInner = pInner.replace(
+        /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi,
+        ""
+      );
+      pInner = pInner.replace(
+        /<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi,
+        " * "
+      );
 
       const caption = stripTags(pInner).replace(/\s+/g, " ").trim();
 
