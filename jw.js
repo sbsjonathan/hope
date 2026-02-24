@@ -323,6 +323,23 @@ function PROCESSADOR_6(html) {
     }
   );
 
+  out = out.replace(
+    /<figure\b[^>]*>[\s\S]*?<span\b[^>]*\bclass=(["'])[^"']*\bjsRespImg\b[^"']*\1[^>]*\bdata-img-size-lg=(["'])([^"']+)\2[^>]*>[\s\S]*?<\/span>[\s\S]*?<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>[\s\S]*?<\/figure>/gi,
+    (_m, _q1, _q2, lgUrl, figcapInner) => {
+      const hasFootnoteLink =
+        /\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1/i.test(figcapInner);
+
+      let caption = stripTags(figcapInner)
+        .replace(/\u00a0/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      if (hasFootnoteLink) caption = `${caption} *`;
+
+      return `\n\n<figure>\n  <img src="${lgUrl}" />\n  <figcaption>\n    ${caption}\n  </figcaption>\n</figure>\n\n`;
+    }
+  );
+
   return out;
 }
 // <<<PROCESSADOR_6_FIM<<<
