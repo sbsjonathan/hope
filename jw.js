@@ -372,7 +372,10 @@ function PROCESSADOR_7(html) {
     /<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\1[^>]*>\s*<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\2[^>]*>([\s\S]*?)<\/p>\s*<\/div>/gi,
     (m, _q1, _q2, inner) => {
       let s = inner || "";
-      s = s.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
+      s = s.replace(
+        /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi,
+        ""
+      );
       s = s.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1");
       s = stripTags(s).replace(/\s+/g, " ").trim();
 
@@ -384,31 +387,33 @@ function PROCESSADOR_7(html) {
   );
 
   out = out.replace(
-    /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>\s*<div\b[^>]*\bid=(["'])footnote\d+\2[^>]*>\s*<p\b[^>]*>([\s\S]*?)<\/p>\s*<\/div>\s*<\/div>/gi,
-    (_m, _q1, _q2, inner) => {
-      let s = inner || "";
+    /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi,
+    (m) => {
+      const pMatch = m.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i);
+      if (!pMatch) return m;
 
-      s = s.replace(
+      let inner = pMatch[1] || "";
+
+      inner = inner.replace(
         /<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i,
         "*"
       );
 
-      s = s.replace(/\s*\*\*\s*/g, " ");
+      inner = inner.replace(/\s+/g, " ").trim();
 
-      s = s.replace(/\s+/g, " ").trim();
+      const note = inner.trim();
+      if (!note) return "";
 
-      if (!s) return "";
-
-      return `\n\n<nota>${s}</nota>\n\n`;
+      return `\n\n<nota>${note}</nota>\n\n`;
     }
   );
 
-  out = out.replace(
-    /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi,
-    ""
-  );
+  out = out.replace(/<\/?article\b[^>]*>/gi, "");
 
-    out = out.replace(/(\n\s*<\/div>\s*)+$/i, "\n");
+  const lastNotaEnd = out.lastIndexOf("</nota>");
+  if (lastNotaEnd !== -1) {
+    out = out.slice(0, lastNotaEnd + "</nota>".length) + "\n";
+  }
 
   return out;
 }
