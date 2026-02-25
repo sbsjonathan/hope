@@ -405,4 +405,147 @@ function PROCESSADOR_6(html) {
 }
 // <<<PROCESSADOR_6_FIM<<<
 
+// >>>PROCESSADOR_7_INICIO<<<
+function PROCESSADOR_7(html) {
+  let out = html.replace(/\r\n/g, "\n");
 
+  out = out.replace(
+    /<h2\b[^>]*\bclass=(["'])[^"']*\bdu-textAlign--center\b[^"']*\1[^>]*>[\s\S]*?<\/h2>/gi,
+    (m) => {
+      const txt = stripTags(m).replace(/\s+/g, " ").trim();
+      return txt ? `\n\n<subtitulo>${txt}</subtitulo>\n\n` : m;
+    }
+  );
+
+  out = out.replace(
+    /(</recap>\s*)<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\2[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\3[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi,
+    (_m, recapEnd, _q1, _q2, inner) => {
+      let s = inner || "";
+      s = s.replace(
+        /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi,
+        ""
+      );
+      s = s.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1");
+      s = stripTags(s).replace(/\s+/g, " ").trim();
+
+      if (!s) return recapEnd;
+      if (!/\bCÂNTICO\b/i.test(s)) return recapEnd + _m.slice(recapEnd.length);
+
+      return `${recapEnd}\n\n<cantico>${s}</cantico>\n\n`;
+    }
+  );
+
+  const stripTagsExceptStrongEm = (s) => {
+    let t = s || "";
+    t = t.replace(/<\s*strong\s*>/gi, "__STRONG_OPEN__");
+    t = t.replace(/<\s*\/\s*strong\s*>/gi, "__STRONG_CLOSE__");
+    t = t.replace(/<\s*em\s*>/gi, "__EM_OPEN__");
+    t = t.replace(/<\s*\/\s*em\s*>/gi, "__EM_CLOSE__");
+    t = t.replace(/<[^>]+>/g, "");
+    t = t.replace(/__STRONG_OPEN__/g, "<strong>");
+    t = t.replace(/__STRONG_CLOSE__/g, "</strong>");
+    t = t.replace(/__EM_OPEN__/g, "<em>");
+    t = t.replace(/__EM_CLOSE__/g, "</em>");
+    return t;
+  };
+
+  const extractGroupFootnoteBlock = (src, startIdx) => {
+    const openTagMatch = src.slice(startIdx).match(
+      /<div\b[^>]*\bclass=(?:"|')[^"']*\bgroupFootnote\b[^"']*(?:"|')[^>]*>/i
+    );
+    if (!openTagMatch) return null;
+
+    const openIdx = startIdx + openTagMatch.index;
+    const openTag = openTagMatch[0];
+    const openEnd = openIdx + openTag.length;
+
+    let i = openEnd;
+    let depth = 1;
+
+    while (i < src.length) {
+      const nextOpen = src.slice(i).search(/<div\b/i);
+      const nextClose = src.slice(i).search(/<\/div\s*>/i);
+
+      if (nextClose < 0) break;
+
+      if (nextOpen >= 0 && nextOpen < nextClose) {
+        depth++;
+        i += nextOpen + 4;
+        continue;
+      }
+
+      depth--;
+      const closeStart = i + nextClose;
+      const closeTagMatch = src.slice(closeStart).match(/<\/div\s*>/i);
+      const closeEnd = closeStart + (closeTagMatch ? closeTagMatch[0].length : 6);
+
+      if (depth === 0) {
+        return {
+          start: openIdx,
+          end: closeEnd,
+          inner: src.slice(openEnd, closeStart),
+        };
+      }
+
+      i = closeEnd;
+    }
+
+    return null;
+  };
+
+  const buildNotasFromInner = (inner) => {
+    const notas = [];
+
+    inner.replace(
+      /<div\b[^>]*\bid=(["'])footnote\d+\1[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi,
+      (_m, _q, pInner) => {
+        let s = pInner || "";
+        s = s.replace(
+          /<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i,
+          "*"
+        );
+        s = stripTagsExceptStrongEm(s).replace(/\s+/g, " ").trim();
+        if (s) notas.push(s);
+        return _m;
+      }
+    );
+
+    if (notas.length === 0) {
+      inner.replace(/<p\b[^>]*>([\s\S]*?)<\/p>/gi, (_m, pInner) => {
+        let s = pInner || "";
+        s = s.replace(
+          /<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i,
+          "*"
+        );
+        s = stripTagsExceptStrongEm(s).replace(/\s+/g, " ").trim();
+        if (s) notas.push(s);
+        return _m;
+      });
+    }
+
+    if (notas.length === 0) return "";
+
+    return notas.map((n) => `\n\n<nota>${n}</nota>\n\n`).join("");
+  };
+
+  let searchFrom = 0;
+  while (true) {
+    const blk = extractGroupFootnoteBlock(out, searchFrom);
+    if (!blk) break;
+
+    const replacement = buildNotasFromInner(blk.inner);
+    out = out.slice(0, blk.start) + replacement + out.slice(blk.end);
+
+    searchFrom = blk.start + replacement.length;
+  }
+
+  out = out.replace(/<\/?article\b[^>]*>/gi, "");
+
+  const lastNotaEnd = out.lastIndexOf("</nota>");
+  if (lastNotaEnd !== -1) {
+    out = out.slice(0, lastNotaEnd + "</nota>".length) + "\n";
+  }
+
+  return out;
+}
+// <<<PROCESSADOR_7_FIM<<<
