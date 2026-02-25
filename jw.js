@@ -449,95 +449,28 @@ function PROCESSADOR_7(html) {
     return t;
   };
 
-  const extractGroupFootnoteBlock = (src, startIdx) => {
-    const openTagMatch = src.slice(startIdx).match(
-      /<div\b[^>]*\bclass=(?:"|')[^"']*\bgroupFootnote\b[^"']*(?:"|')[^>]*>/i
-    );
-    if (!openTagMatch) return null;
+  out = out.replace(
+    /<div\b[^>]*\bid=(["'])footnote\d+\1[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi,
+    (_m, _q, inner) => {
+      let s = inner || "";
 
-    const openIdx = startIdx + openTagMatch.index;
-    const openTag = openTagMatch[0];
-    const openEnd = openIdx + openTag.length;
+      s = s.replace(
+        /<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i,
+        "*"
+      );
 
-    let i = openEnd;
-    let depth = 1;
+      s = stripTagsExceptStrongEm(s).replace(/\s+/g, " ").trim();
+      if (!s) return "";
 
-    while (i < src.length) {
-      const nextOpen = src.slice(i).search(/<div\b/i);
-      const nextClose = src.slice(i).search(/<\/div\s*>/i);
-
-      if (nextClose < 0) break;
-
-      if (nextOpen >= 0 && nextOpen < nextClose) {
-        depth++;
-        i += nextOpen + 4;
-        continue;
-      }
-
-      depth--;
-      const closeStart = i + nextClose;
-      const closeTagMatch = src.slice(closeStart).match(/<\/div\s*>/i);
-      const closeEnd = closeStart + (closeTagMatch ? closeTagMatch[0].length : 6);
-
-      if (depth === 0) {
-        return {
-          start: openIdx,
-          end: closeEnd,
-          inner: src.slice(openEnd, closeStart),
-        };
-      }
-
-      i = closeEnd;
+      return `\n\n<nota>${s}</nota>\n\n`;
     }
+  );
 
-    return null;
-  };
-
-  const buildNotasFromInner = (inner) => {
-    const notas = [];
-
-    inner.replace(
-      /<div\b[^>]*\bid=(["'])footnote\d+\1[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi,
-      (_m, _q, pInner) => {
-        let s = pInner || "";
-        s = s.replace(
-          /<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i,
-          "*"
-        );
-        s = stripTagsExceptStrongEm(s).replace(/\s+/g, " ").trim();
-        if (s) notas.push(s);
-        return _m;
-      }
-    );
-
-    if (notas.length === 0) {
-      inner.replace(/<p\b[^>]*>([\s\S]*?)<\/p>/gi, (_m, pInner) => {
-        let s = pInner || "";
-        s = s.replace(
-          /<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i,
-          "*"
-        );
-        s = stripTagsExceptStrongEm(s).replace(/\s+/g, " ").trim();
-        if (s) notas.push(s);
-        return _m;
-      });
-    }
-
-    if (notas.length === 0) return "";
-
-    return notas.map((n) => `\n\n<nota>${n}</nota>\n\n`).join("");
-  };
-
-  let searchFrom = 0;
-  while (true) {
-    const blk = extractGroupFootnoteBlock(out, searchFrom);
-    if (!blk) break;
-
-    const replacement = buildNotasFromInner(blk.inner);
-    out = out.slice(0, blk.start) + replacement + out.slice(blk.end);
-
-    searchFrom = blk.start + replacement.length;
-  }
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>/gi,
+    ""
+  );
+  out = out.replace(/<\/div>\s*(?=\s*<nota>)/gi, "");
 
   out = out.replace(/<\/?article\b[^>]*>/gi, "");
 
