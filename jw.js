@@ -1,7 +1,7 @@
 export default {
   async fetch(request, env, ctx) {
     const targetUrl =
-  "https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-fevereiro-2026/Como-podemos-ajudar-nossos-parentes-descrentes/";
+      "https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-janeiro-2026/Continue-cuidando-da-sua-necessidade-espiritual/";
 
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
@@ -277,22 +277,9 @@ function PROCESSADOR_4(html) {
     /<p\b[^>]*>\s*<span\b[^>]*\bclass=(["'])[^"']*\bparNum\b[^"']*\1[^>]*\bdata-pnum=(["'])(\d+)\2[^>]*>[\s\S]*?<\/span>\s*([\s\S]*?)<\/p>/gi,
     (_m, _q1, _q2, num, restHtml) => {
       let rest = restHtml || "";
-
-      rest = rest.replace(
-        /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi,
-        ""
-      );
-
-      rest = rest.replace(
-        /<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi,
-        " *"
-      );
-
-      rest = rest.replace(/\s{2,}/g, " ");
       rest = rest.replace(/^\s+/, "").replace(/^\u00a0+/, "");
       rest = rest.replace(/\s+$/, "");
-
-      return `\n\n<paragrafo>${num} ${rest}</paragrafo>\n\n`;
+      return `<paragrafo>${num} ${rest}</paragrafo>`;
     }
   );
 
@@ -333,7 +320,7 @@ function PROCESSADOR_5(html) {
   );
 
   out = out.replace(
-    /<div\b[^>]*\bid=(?:"|')tt(?:10|11)(?:"|')[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?<strong[^>]*>\s*OBJETIVO\s*<\/strong>[\s\S]*?<\/p>\s*<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
+    /<div\b[^>]*\bid=(?:"|')tt11(?:"|')[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?<strong[^>]*>\s*OBJETIVO\s*<\/strong>[\s\S]*?<\/p>\s*<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i,
     (_m, body) => {
       const txt = stripTags(body).replace(/\s+/g, " ").trim();
       return `<objetivo>OBJETIVO\n\n${txt}</objetivo>\n\n`;
@@ -418,8 +405,8 @@ function PROCESSADOR_7(html) {
   );
 
   out = out.replace(
-    /(</recap>\s*)<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\2[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\3[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi,
-    (_m, recapEnd, _q1, _q2, inner) => {
+    /<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\1[^>]*>\s*<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\2[^>]*>([\s\S]*?)<\/p>\s*<\/div>/gi,
+    (m, _q1, _q2, inner) => {
       let s = inner || "";
       s = s.replace(
         /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi,
@@ -428,49 +415,34 @@ function PROCESSADOR_7(html) {
       s = s.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1");
       s = stripTags(s).replace(/\s+/g, " ").trim();
 
-      if (!s) return recapEnd;
-      if (!/\bCÂNTICO\b/i.test(s)) return recapEnd + _m.slice(recapEnd.length);
+      if (!s) return m;
+      if (!/\bCÂNTICO\b/i.test(s)) return m;
 
-      return `${recapEnd}\n\n<cantico>${s}</cantico>\n\n`;
+      return `\n\n<cantico>${s}</cantico>\n\n`;
     }
   );
 
-  const stripTagsExceptStrongEm = (s) => {
-    let t = s || "";
-    t = t.replace(/<\s*strong\s*>/gi, "__STRONG_OPEN__");
-    t = t.replace(/<\s*\/\s*strong\s*>/gi, "__STRONG_CLOSE__");
-    t = t.replace(/<\s*em\s*>/gi, "__EM_OPEN__");
-    t = t.replace(/<\s*\/\s*em\s*>/gi, "__EM_CLOSE__");
-    t = t.replace(/<[^>]+>/g, "");
-    t = t.replace(/__STRONG_OPEN__/g, "<strong>");
-    t = t.replace(/__STRONG_CLOSE__/g, "</strong>");
-    t = t.replace(/__EM_OPEN__/g, "<em>");
-    t = t.replace(/__EM_CLOSE__/g, "</em>");
-    return t;
-  };
-
   out = out.replace(
-    /<div\b[^>]*\bid=(["'])footnote\d+\1[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi,
-    (_m, _q, inner) => {
-      let s = inner || "";
+    /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi,
+    (m) => {
+      const pMatch = m.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i);
+      if (!pMatch) return m;
 
-      s = s.replace(
+      let inner = pMatch[1] || "";
+
+      inner = inner.replace(
         /<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i,
         "*"
       );
 
-      s = stripTagsExceptStrongEm(s).replace(/\s+/g, " ").trim();
-      if (!s) return "";
+      inner = inner.replace(/\s+/g, " ").trim();
 
-      return `\n\n<nota>${s}</nota>\n\n`;
+      const note = inner.trim();
+      if (!note) return "";
+
+      return `\n\n<nota>${note}</nota>\n\n`;
     }
   );
-
-  out = out.replace(
-    /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>/gi,
-    ""
-  );
-  out = out.replace(/<\/div>\s*(?=\s*<nota>)/gi, "");
 
   out = out.replace(/<\/?article\b[^>]*>/gi, "");
 
