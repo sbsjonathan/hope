@@ -11,35 +11,25 @@ export default {
     }
 
     const urlParams = new URL(request.url).searchParams;
-    let targetUrl = urlParams.get("url"); // Permite passar um link direto se quiser testar
-    const arquivoRtf = urlParams.get("arquivo"); // O Front-end envia isso!
+    let targetUrl = urlParams.get("url");
+    const arquivoRtf = urlParams.get("arquivo");
 
     try {
-      // ==========================================
-      // PARTE 1: CAÇANDO O LINK DINÂMICO
-      // ==========================================
       if (!targetUrl && arquivoRtf) {
-        // Extrai "202602" e "01" do link "w_T_202602_01.rtf"
         const match = arquivoRtf.match(/w_T_(\d{6})_(\d{2})\.rtf/i);
-        
         if (match) {
-          const issue = match[1]; // ex: 202602
-          // Usa o RTF para descobrir o título e montar o link jw.org final
-          targetUrl = await buildJwUrlFromRtf(arquivoRtf, issue); 
+          const issue = match[1];
+          targetUrl = await buildJwUrlFromRtf(arquivoRtf, issue);
         }
       }
 
-      // Fallback de segurança caso dê erro ou chame o Worker vazio
       if (!targetUrl) {
         targetUrl = "https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-janeiro-2026/Continue-cuidando-da-sua-necessidade-espiritual/";
       }
 
-      // ==========================================
-      // PARTE 2: ACESSANDO O ARTIGO
-      // ==========================================
       const headers = new Headers({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
         "Cache-Control": "max-age=0",
         "Sec-Fetch-Dest": "document",
@@ -48,34 +38,40 @@ export default {
         "Upgrade-Insecure-Requests": "1",
       });
 
-      const response = await fetch(targetUrl, { method: "GET", headers, redirect: "follow" });
+      let response = await fetch(targetUrl, { method: "GET", headers, redirect: "follow" });
+
+      if (!response.ok && targetUrl.includes("/pt/biblioteca/revistas/")) {
+        const match = arquivoRtf.match(/w_T_(\d{6})_(\d{2})\.rtf/i);
+        if (match) {
+          const issue = match[1];
+          const studyNumber = parseInt(match[2], 10);
+          const fallbackUrl = await getFallbackUrlFromTOC(issue, studyNumber);
+          if (fallbackUrl) {
+            targetUrl = fallbackUrl;
+            response = await fetch(targetUrl, { method: "GET", headers, redirect: "follow" });
+          }
+        }
+      }
+
       const rawHtml = await response.text();
 
       if (!response.ok) {
-        return new Response(`Erro do site alvo: Status ${response.status}\nLink tentado: ${targetUrl}`, {
+        return new Response(`Erro do site alvo: Status ${response.status}\nLink: ${targetUrl}`, {
           status: response.status,
           headers: { ...corsHeaders, "Content-Type": "text/plain;charset=UTF-8" },
         });
       }
 
-      // ==========================================
-      // PARTE 3: CAÇANDO O HEX NO CSS
-      // ==========================================
       let hexColor = "";
       const tokenMatch = rawHtml.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
       
       if (tokenMatch) {
-        const tokenClass = tokenMatch[0]; // ex: "du-bgColor--blue700"
+        const tokenClass = tokenMatch[0];
         hexColor = await fetchHexFromCss(rawHtml, targetUrl, tokenClass);
       }
       
-      // Fallback: se não achar o HEX, manda o nome da classe
       if (!hexColor) hexColor = tokenMatch ? tokenMatch[1] : "";
 
-
-      // ==========================================
-      // PARTE 4: PROCESSADORES E LIMPEZA
-      // ==========================================
       const onlyArticle = keepOnlyArticle(rawHtml);
 
       const rewriter = new HTMLRewriter()
@@ -91,7 +87,6 @@ export default {
         new Response(onlyArticle, { headers: { "Content-Type": "text/html;charset=UTF-8" } })
       ).text();
 
-      // O PROCESSADOR 2 agora recebe e injeta a cor dinamicamente!
       const afterP2 = PROCESSADOR_2(cleaned, hexColor);
       const afterP3 = PROCESSADOR_3(afterP2);
       const afterP4 = PROCESSADOR_4(afterP3);
@@ -116,16 +111,35 @@ export default {
   },
 };
 
-// =========================================================================
-// FUNÇÃO MÁGICA 1: CRIA A URL JW.ORG LENDO O TÍTULO DO RTF
-// =========================================================================
+async function getFallbackUrlFromTOC(issue, studyNumber) {
+  const ano = issue.slice(0, 4);
+  const mesNum = issue.slice(4, 6);
+  const meses = { "01": "janeiro", "02": "fevereiro", "03": "marco", "04": "abril", "05": "maio", "06": "junho", "07": "julho", "08": "agosto", "09": "setembro", "10": "outubro", "11": "novembro", "12": "dezembro" };
+  const mesNome = meses[mesNum];
+  const tocUrl = `https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-${mesNome}-${ano}/`;
+  
+  const res = await fetch(tocUrl);
+  const html = await res.text();
+  const regex = new RegExp(`/pt/biblioteca/revistas/sentinela-estudo-${mesNome}-${ano}/([a-z0-9-]+)/`, "gi");
+  let matches =[];
+  let match;
+  while ((match = regex.exec(html)) !== null) {
+    matches.push(match[0]);
+  }
+  matches = [...new Set(matches)];
+  matches = matches.filter(m => !m.endsWith(`${mesNome}-${ano}/`));
+  
+  if (matches.length >= studyNumber) {
+    return `https://www.jw.org` + (matches[studyNumber] || matches[studyNumber - 1]);
+  }
+  return null;
+}
+
 async function buildJwUrlFromRtf(rtfUrl, issue) {
-  // 1. Baixa o conteúdo do RTF
   const rtfRes = await fetch(rtfUrl);
   let texto = await rtfRes.text();
 
-  // 2. Limpeza brutal do RTF apenas para achar o título
-  texto = texto.replace(/\[Leitura do texto de\][\s\S]*?\[Fim da leitura\.?\]/gi, " ");
+  texto = texto.replace(/\[.*?\]/g, "");
   texto = texto.replace(/\\u(-?\d+)\?/g, (_, n) => { let code = parseInt(n, 10); return String.fromCharCode(code < 0 ? 65536 + code : code); });
   texto = texto.replace(/\\'([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
   texto = texto.replace(/\{\\\*[^{}]*\}/g, " ").replace(/\{\\[a-z]+[\s\S]*?\}/gi, " ");
@@ -138,30 +152,27 @@ async function buildJwUrlFromRtf(rtfUrl, issue) {
     .map(l => l.replace(/Copyright\s*©.*?Pennsylvania/gi, "").trim())
     .filter(Boolean);
 
-  // 3. Acha o Título (Geralmente a linha logo depois do Cântico)
   let tagTema = "";
   let achouCantico = false;
   for (let i = 0; i < limpas.length; i++) {
-    let txt = limpas[i];
-    if (/^c[âa]ntico\b/i.test(txt)) {
+    let txt = limpas[i].toLowerCase();
+    if (txt.includes("cantico") || txt.includes("cântico")) {
       achouCantico = true;
       continue;
     }
-    if (achouCantico && !tagTema && !/^pergunta\s+\d+/i.test(txt) && !/^\d+\s+/.test(txt)) {
-      tagTema = txt;
+    if (achouCantico && !txt.includes("pergunta") && !/^\d+$/.test(txt)) {
+      tagTema = limpas[i];
       break;
     }
   }
-  // Se não achar o Cântico, pega as primeiras linhas úteis como fallback
   if (!tagTema) tagTema = limpas[1] || limpas[0];
 
-  // 4. Cria o Slug (Padrão URL JW)
   let s = tagTema;
   s = s.replace(/<[^>]+>/g, " ").replace(/[\u201C\u201D\u201E\u201F\u2033\u2036"']/g, "").replace(/[(){}\[\]<>]/g, " ");
   s = s.replace(/[.!,;:?/\\|_+=*&^%$#@~`—–]/g, " ").replace(/\s+/g, " ").trim();
-  s = s.replace(/[^\p{L}\p{N}\s-]+/gu, "").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
+  s = s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  s = s.replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "");
 
-  // 5. Monta o link final
   const ano = issue.slice(0, 4);
   const mesNum = issue.slice(4, 6);
   const meses = { "01": "janeiro", "02": "fevereiro", "03": "marco", "04": "abril", "05": "maio", "06": "junho", "07": "julho", "08": "agosto", "09": "setembro", "10": "outubro", "11": "novembro", "12": "dezembro" };
@@ -170,15 +181,12 @@ async function buildJwUrlFromRtf(rtfUrl, issue) {
   return `https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-${mesNome}-${ano}/${s}/`;
 }
 
-// =========================================================================
-// FUNÇÃO MÁGICA 2: CAÇA O HEX DO CSS (Lê o collector.css)
-// =========================================================================
 async function fetchHexFromCss(html, baseUrl, tokenClass) {
   try {
     const baseMatch = html.match(/<base\b[^>]*href\s*=\s*["']([^"']+)["']/i);
     const baseHref = baseMatch ? baseMatch[1] : baseUrl;
 
-    const hrefs = [];
+    const hrefs =[];
     const linkRe = /<link\b[^>]*>/gi;
     let lm;
     while ((lm = linkRe.exec(html)) !== null) {
@@ -223,9 +231,6 @@ async function fetchHexFromCss(html, baseUrl, tokenClass) {
   return null;
 }
 
-// =========================================================================
-// FUNÇÕES UTILITÁRIAS E PROCESSADORES (HTML REWRITER)
-// =========================================================================
 function normalizeBlankLines(html) {
   let out = html.replace(/\r\n/g, "\n");
   out = out.replace(/[ \t]+\n/g, "\n");
@@ -271,7 +276,7 @@ function processPerguntas(html) {
   );
 }
 
-// INJETA O DOC ID E A COR HEX NO TOPO
+// >>>PROCESSADOR_2_INICIO<<<
 function PROCESSADOR_2(html, hexColor) {
   let out = html.replace(/\r\n/g, "\n");
   const docIdMatch = out.match(/\bdocId-(\d+)\b/i);
@@ -310,7 +315,9 @@ function PROCESSADOR_2(html, hexColor) {
   }
   return `${docId}\n\n${hexColor}\n\n` + out.slice(openEnd);
 }
+// <<<PROCESSADOR_2_FIM<<<
 
+// >>>PROCESSADOR_3_INICIO<<<
 function PROCESSADOR_3(html) {
   let out = html.replace(/\r\n/g, "\n");
   out = out.replace(/<p\b[^>]*\bclass=(["'])[^"']*\bcontextTtl\b[^"']*\1[^>]*>[\s\S]*?<\/p>/i, (m) => `<estudo>${stripTags(m).replace(/\s+/g, " ").trim()}</estudo>\n\n`);
@@ -318,7 +325,9 @@ function PROCESSADOR_3(html) {
   out = out.replace(/<h1\b[^>]*>[\s\S]*?<\/h1>/i, (m) => `<tema>${stripTags(m).replace(/\s+/g, " ").trim()}</tema>\n\n`);
   return out;
 }
+// <<<PROCESSADOR_3_FIM<<<
 
+// >>>PROCESSADOR_4_INICIO<<<
 function PROCESSADOR_4(html) {
   let out = html.replace(/\r\n/g, "\n");
   out = out.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bjsBibleLink\b[^"']*\1[^>]*>([\s\S]*?)<\/a>/gi, (_m, _q, inner) => `<bbl>${stripTags(inner).replace(/\s+/g, " ").trim()}</bbl>`);
@@ -328,7 +337,9 @@ function PROCESSADOR_4(html) {
   });
   return out;
 }
+// <<<PROCESSADOR_4_FIM<<<
 
+// >>>PROCESSADOR_5_INICIO<<<
 function PROCESSADOR_5(html) {
   let out = html.replace(/\r\n/g, "\n");
   out = out.replace(/<\/tema>\s*<\/header>[\s\S]*?(?=<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>|<p\b[^>]*\bclass=(?:"|')[^"']*\bthemeScrp\b[^"']*(?:"|')[^>]*>)/i, "</tema>\n\n");
@@ -344,7 +355,9 @@ function PROCESSADOR_5(html) {
   out = out.replace(/<div\b[^>]*\bid=(?:"|')tt11(?:"|')[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?<strong[^>]*>\s*OBJETIVO\s*<\/strong>[\s\S]*?<\/p>\s*<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/i, (_m, body) => `<objetivo>OBJETIVO\n\n${stripTags(body).replace(/\s+/g, " ").trim()}</objetivo>\n\n`);
   return out;
 }
+// <<<PROCESSADOR_5_FIM<<<
 
+// >>>PROCESSADOR_6_INICIO<<<
 function PROCESSADOR_6(html) {
   let out = html.replace(/\r\n/g, "\n");
   out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bblockTeach\b[^"']*\1[^>]*>\s*<aside\b[^>]*>[\s\S]*?<\/aside>\s*<\/div>/gi, (m) => {
@@ -371,7 +384,9 @@ function PROCESSADOR_6(html) {
   });
   return out;
 }
+// <<<PROCESSADOR_6_FIM<<<
 
+// >>>PROCESSADOR_7_INICIO<<<
 function PROCESSADOR_7(html) {
   let out = html.replace(/\r\n/g, "\n");
   out = out.replace(/<h2\b[^>]*\bclass=(["'])[^"']*\bdu-textAlign--center\b[^"']*\1[^>]*>[\s\S]*?<\/h2>/gi, (m) => {
@@ -396,3 +411,4 @@ function PROCESSADOR_7(html) {
   if (lastNotaEnd !== -1) out = out.slice(0, lastNotaEnd + "</nota>".length) + "\n";
   return out;
 }
+// <<<PROCESSADOR_7_FIM<<<
