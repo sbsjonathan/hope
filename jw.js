@@ -70,7 +70,7 @@ export default {
       const afterP5 = PROCESSADOR_5(afterP4);
       const afterP6 = PROCESSADOR_6(afterP5);
       const afterP7 = PROCESSADOR_7(afterP6);
-      
+
       const withPerguntas = processPerguntas(afterP7);
       const finalHtml = normalizeBlankLines(withPerguntas);
 
@@ -225,8 +225,42 @@ function PROCESSADOR_3(html) {
 
 function PROCESSADOR_4(html) {
   let out = html.replace(/\r\n/g, "\n");
+
+  // Converte links bíblicos em <bbl> cedo, porque depois a gente vai preservar esses pedaços
   out = out.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bjsBibleLink\b[^"']*\1[^>]*>([\s\S]*?)<\/a>/gi, (_m, _q, inner) => `<bbl>${stripTags(inner).replace(/\s+/g, " ").trim()}</bbl>`);
-  out = out.replace(/<p\b[^>]*>\s*<span\b[^>]*\bclass=(["'])[^"']*\bparNum\b[^"']*\1[^>]*\bdata-pnum=(["'])(\d+)\2[^>]*>[\s\S]*?<\/span>([\s\S]*?)<\/p>/gi, (_m, _q1, _q2, num, restHtml) => `<paragrafo>${num} ${(restHtml || "").replace(/^\s+/, "").replace(/^\u00a0+/, "").replace(/\s+$/, "")}</paragrafo>`);
+
+  // Troca a marcação bruta de nota de rodapé por " * " (com espaço dos dois lados)
+  const footnoteToAsterisk = (s) => {
+    let t = (s || "");
+
+    // caso padrão: <span class="refID"...></span><a class="footnoteLink"...>a</a>
+    t = t.replace(
+      /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\2[^>]*>[\s\S]*?<\/a>/gi,
+      " * "
+    );
+
+    // fallback: só o link
+    t = t.replace(/\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>\s*/gi, " * ");
+
+    // fallback: só o span
+    t = t.replace(/\s*<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*/gi, " ");
+
+    // normaliza espaço em volta do asterisco
+    t = t.replace(/\s*\*\s*/g, " * ");
+    t = t.replace(/\s{2,}/g, " ");
+    return t;
+  };
+
+  out = out.replace(
+    /<p\b[^>]*>\s*<span\b[^>]*\bclass=(["'])[^"']*\bparNum\b[^"']*\1[^>]*\bdata-pnum=(["'])(\d+)\2[^>]*>[\s\S]*?<\/span>([\s\S]*?)<\/p>/gi,
+    (_m, _q1, _q2, num, restHtml) => {
+      let rest = (restHtml || "");
+      rest = footnoteToAsterisk(rest);
+      rest = rest.replace(/^\s+/, "").replace(/^\u00a0+/, "").replace(/\s+$/, "");
+      return `<paragrafo>${num} ${rest}</paragrafo>`;
+    }
+  );
+
   return out;
 }
 
@@ -234,24 +268,24 @@ function PROCESSADOR_5(html) {
   let out = html.replace(/\r\n/g, "\n");
   out = out.replace(/<\/tema>\s*<\/header>[\s\S]*?(?=<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>|<p\b[^>]*\bclass)/i, "</tema>\n\n");
   out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bbodyTxt\b[^"']*\1[^>]*>/gi, "");
-  
+
   const stripTagsExceptBbl = (s) => {
     let t = s.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__").replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
     t = t.replace(/<[^>]+>/g, "");
     return t.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>");
   };
   out = out.replace(/<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bthemeScrp\b[^"']*\1[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi, (_m, _q, inner) => `<citacao>${stripTagsExceptBbl(inner).replace(/\s+/g, " ").trim()}</citacao>\n\n`);
-  
+
   // NOVA INTELIGÊNCIA DO OBJETIVO (Isola qualquer div ttX que tenha "OBJETIVO" em negrito)
   out = out.replace(
     /<div\b[^>]*\bid=(?:"|')tt\d+(?:"|')[^>]*>([\s\S]*?)<\/div>/gi,
     (m, inner) => {
       if (/<strong[^>]*>\s*OBJETIVO\s*<\/strong>/i.test(inner)) {
         let txt = stripTags(inner).replace(/\s+/g, " ").trim();
-        txt = txt.replace(/^OBJETIVO\s*/i, ""); // Remove a palavra objetivo caso tenha ficado grudada no início
+        txt = txt.replace(/^OBJETIVO\s*/i, "");
         return `<objetivo>OBJETIVO\n${txt}</objetivo>\n\n`;
       }
-      return m; // Se não for o objetivo, mantém como estava
+      return m;
     }
   );
 
@@ -260,8 +294,6 @@ function PROCESSADOR_5(html) {
 
 function PROCESSADOR_6(html) {
   let out = html.replace(/\r\n/g, "\n");
-  
-  // Regra da recapitulação (Mantida)
   out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bblockTeach\b[^"']*\1[^>]*>\s*<aside\b[^>]*>[\s\S]*?<\/aside>/gi, (m) => {
       const h2m = m.match(/<h2\b[^>]*>[\s\S]*?<\/h2>/i);
       const titulo = h2m ? stripTags(h2m[0]).replace(/\s+/g, " ").trim() : "";
@@ -272,42 +304,15 @@ function PROCESSADOR_6(html) {
         return _mm;
       });
       if (!titulo && itens.length === 0) return m;
-      return `\n\n<recap>${(titulo + itens.map((t) => `\n\n• ${t}`).join("")).trim()}</recap>`;
+      return `\n\n<recap>${(titulo + itens.map((t) => `\n\n• ${t}`).join("")).trim()}</recap>\n\n`;
   });
-
-  // NOVA REGRA DA FIGURE (Remove divs, pega LG, remove HR e ALT)
-  out = out.replace(
-    /<div\b[^>]*\bid=(["'])f\d+\1[^>]*>[\s\S]*?<figure\b[^>]*>[\s\S]*?<\/figure>\s*<\/div>(?:\s*<hr\b[^>]*>)?/gi,
-    (m) => {
-      // 1. Extrai o link LG
-      const lgMatch = m.match(/data-img-size-lg=(["'])(.*?)\1/i);
-      const src = lgMatch ? lgMatch[2] : "";
-
-      if (!src) return m; // Se falhar, não quebra o texto
-
-      // 2. Extrai a legenda
-      const pMatch = m.match(/<figcaption\b[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>/i);
-      let caption = "";
-      
-      if (pMatch && pMatch[1]) {
-        let pInner = pMatch[1];
-        // Remove links e classes sujas da legenda
-        pInner = pInner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
-        pInner = pInner.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi, "");
-        caption = stripTags(pInner).replace(/\s+/g, " ").trim();
-      }
-
-      // 3. Monta o HTML final exatamente como você desenhou
-      let fig = `\n\n<figure>\n  <img src="${src}">`;
-      if (caption) {
-        fig += `\n  <figcaption>\n    ${caption}\n  </figcaption>`;
-      }
-      fig += `\n</figure>\n\n`;
-
-      return fig;
-    }
-  );
-
+  out = out.replace(/<div\b[^>]*\bid=(["'])f\d+\1[^>]*>[\s\S]*?<figure\b[^>]*>[\s\S]*?<span\b[^>]*\bclass=(["']).*?data-img-size-lg=(["'])(.*?)\3/gi, (m, id, qClass, qLg, src) => {
+      if (!src) return m;
+      const pMatch = m.match(/<figcaption\b[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/figcaption>/i);
+      if (!pMatch || !pMatch[1]) return m;
+      let pInner = pMatch[1].replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "").replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi, "");
+      return `\n\n<figure>\n <img src="${src}" />\n <figcaption>\n${stripTags(pInner).trim()}\n </figcaption>\n</figure>\n\n`;
+  });
   return out;
 }
 
@@ -318,6 +323,20 @@ function PROCESSADOR_7(html) {
       return txt ? `\n\n<subtitulo>${txt}</subtitulo>\n\n` : m;
   });
   out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\1[^>]*>\s*<p\b[^>]*\bclass/gi, (m) => m);
+
+  // Cantico que aparece lá no final (pubRefs)
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\1[^>]*>\s*<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\2[^>]*>[\s\S]*?<\/p>\s*<\/div>/gi,
+    (m) => {
+      const txt = stripTags(m).replace(/\s+/g, " ").trim();
+      return txt ? `\n\n<cantico>${txt}</cantico>\n\n` : "";
+    }
+  );
+
+  // Remove lixo de div "solta" colando em volta do recap
+  out = out.replace(/<\/div>\s*(<recap>)/gi, "$1");
+  out = out.replace(/(<\/recap>)\s*<\/div>/gi, "$1");
+
   out = out.replace(/<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi, (m) => {
       const pMatch = m.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i);
       if (!pMatch) return m;
