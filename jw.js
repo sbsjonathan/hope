@@ -266,16 +266,11 @@ function PROCESSADOR_5(html) {
         txt = txt.replace(/^OBJETIVO\s*/i, "");
         return `<objetivo>OBJETIVO\n${txt}</objetivo>\n\n`;
       }
-      return m;
-    }
-  );
-
-  return out;
-}
-
 // >>>PROCESSADOR_6_INICIO<<<
 function PROCESSADOR_6(html) {
   let out = html.replace(/\r\n/g, "\n");
+  
+  // 1. REGRA DO RECAP (Mantida)
   out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bblockTeach\b[^"']*\1[^>]*>\s*<aside\b[^>]*>[\s\S]*?<\/aside>/gi, (m) => {
       const h2m = m.match(/<h2\b[^>]*>[\s\S]*?<\/h2>/i);
       const titulo = h2m ? stripTags(h2m[0]).replace(/\s+/g, " ").trim() : "";
@@ -289,6 +284,47 @@ function PROCESSADOR_6(html) {
       return `\n\n<recap>\n${(titulo + itens.map((t) => `\n\n• ${t}`).join("")).trim()}</recap>`;
   });
 
+  // 2. NOVA REGRA DO QUADRO (boxSupplement)
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])[^"']*\bboxSupplement\b[^"']*\1[^>]*>\s*<aside\b[^>]*>([\s\S]*?)<\/aside>\s*<\/div>/gi,
+    (m, quote, asideInner) => {
+      // Título do Quadro
+      const h2Match = asideInner.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i);
+      const titulo = h2Match ? stripTags(h2Match[1]).replace(/\s+/g, " ").trim() : "";
+
+      const lines =[];
+      
+      // Captura sequencialmente parágrafos e listas
+      const blockRegex = /<(p|li)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+      let bm;
+      
+      while ((bm = blockRegex.exec(asideInner)) !== null) {
+        const tag = bm[1].toLowerCase();
+        let inner = bm[2];
+
+        // Se houver indicação de nota de rodapé no quadro, converte para " * "
+        inner = inner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\2[^>]*>[\s\S]*?<\/a>/gi, " * ");
+
+        // Protege as tags <bbl> da limpeza de HTML
+        let text = inner.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__").replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
+        
+        // Limpa o resto das tags (como os <p> internos dos <li>, <strong>, etc)
+        text = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+        
+        // Restaura as tags <bbl>
+        text = text.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>").trim();
+
+        if (text && text !== "*") {
+           if (tag === "li") lines.push(`• ${text}`);
+           else lines.push(text);
+        }
+      }
+
+      return `\n\n<quadro>\n${titulo}\n${lines.join("\n")}\n</quadro>\n\n`;
+    }
+  );
+
+  // 3. REGRA DA FIGURE (Mantida)
   out = out.replace(
     /<div\b[^>]*\bid=(["'])f\d+\1[^>]*>[\s\S]*?<figure\b[^>]*>[\s\S]*?<\/figure>\s*<\/div>(?:\s*<hr\b[^>]*>)?/gi,
     (m) => {
@@ -312,6 +348,7 @@ function PROCESSADOR_6(html) {
 
   return out;
 }
+// <<<PROCESSADOR_6_FIM<<<
 
 // >>>PROCESSADOR_7_INICIO<<<
 function PROCESSADOR_7(html) {
