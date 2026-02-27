@@ -69,7 +69,9 @@ export default {
       const afterP4 = PROCESSADOR_4(afterP3);
       const afterP5 = PROCESSADOR_5(afterP4);
       const afterP6 = PROCESSADOR_6(afterP5);
-      const afterP7 = PROCESSADOR_7(afterP6);
+      
+      const afterP8 = PROCESSADOR_8(afterP6); // <-- ADICIONADO AQUI
+      const afterP7 = PROCESSADOR_7(afterP8); // <-- O 7 AGORA RECEBE O 8
       
       const withPerguntas = processPerguntas(afterP7);
       const finalHtml = normalizeBlankLines(withPerguntas);
