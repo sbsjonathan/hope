@@ -12,7 +12,6 @@ export default {
     let targetUrl = urlParams.get("url");
     const arquivoRtf = urlParams.get("arquivo");
 
-    // OBJETO QUE GRAVA TUDO QUE O WORKER FAZ:
     let debugLog = {
       receivedArquivo: arquivoRtf,
       issueParsed: null,
@@ -38,14 +37,15 @@ export default {
             debugLog.error = fallbackData.error;
           }
           debugLog.tocUrlFetched = fallbackData.tocUrl;
-          debugLog.tocMatches = fallbackData.matches;
+          debugLog.tocMatches = fallbackData.matches ||[];
         } else {
           debugLog.error = "Expressão w_T_(\\d{6})_(\\d{2}) falhou no arquivoRtf";
         }
       }
 
+      // Se continuou sem achar o link, retorna o erro 400 mas COM O DEBUG JUNTO!
       if (!targetUrl) {
-         return new Response(`<!-- DEBUG_WORKER: ${JSON.stringify(debugLog)} -->\nErro ao descobrir o link correto do site. Verifique o console do celular.`, { 
+         return new Response(`<!-- DEBUG_WORKER: ${JSON.stringify(debugLog)} -->\n❌ Erro ao descobrir o link correto da JW.org.\nMotivo: ${debugLog.error}\nAbra o Console da Engrenagem para mais detalhes.`, { 
              status: 400, headers: { ...corsHeaders, "Content-Type": "text/html;charset=UTF-8" } 
          });
       }
@@ -61,7 +61,7 @@ export default {
 
       if (!response.ok) {
         debugLog.error = `Erro HTTP no site alvo: ${response.status}`;
-        return new Response(`<!-- DEBUG_WORKER: ${JSON.stringify(debugLog)} -->\nErro do site alvo: Status ${response.status}`, {
+        return new Response(`<!-- DEBUG_WORKER: ${JSON.stringify(debugLog)} -->\nErro do site alvo JW.org: Status ${response.status}`, {
           status: response.status, headers: { ...corsHeaders, "Content-Type": "text/html;charset=UTF-8" },
         });
       }
@@ -93,7 +93,6 @@ export default {
       
       const withPerguntas = processPerguntas(afterP7);
       
-      // ANEXA O DEBUG OCULTO NO FINAL DO HTML
       const finalHtml = normalizeBlankLines(withPerguntas) + `\n\n<!-- DEBUG_WORKER: ${JSON.stringify(debugLog)} -->`;
 
       return new Response(finalHtml, { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html;charset=UTF-8" } });
@@ -119,22 +118,31 @@ async function getFallbackUrlFromTOC(issue, studyNumber) {
   if (!mesNome) return { error: "Mês inválido detectado no script" };
 
   const tocUrl = `https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-${mesNome}-${ano}/`;
-  const res = await fetch(tocUrl);
-  if (!res.ok) return { error: `Erro ao buscar Índice (TOC): ${res.status}` };
+  
+  // AQUI ESTÁ A CORREÇÃO: Fomos bloqueados por falta deste "User-Agent"
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/121.0.0.0",
+    "Accept": "text/html"
+  };
+
+  const res = await fetch(tocUrl, { headers });
+  if (!res.ok) return { error: `A JW.org bloqueou a busca do Índice com o Erro: ${res.status}` };
 
   const html = await res.text();
-  const regex = new RegExp(`/pt/biblioteca/revistas/sentinela-estudo-${mesNome}-${ano}/([a-z0-9-]+)\/?`, "gi");
+  
+  // AQUI ESTÁ A CORREÇÃO DA REGEX: Permitindo acentos e URLs exatas de href
+  const regex = new RegExp(`href=["'](/pt/biblioteca/revistas/sentinela-estudo-${mesNome}-${ano}/[^"']+)["']`, "gi");
 
   let matches =[];
   let match;
   while ((match = regex.exec(html)) !== null) {
-    matches.push(match[0]);
+    matches.push(match[1]);
   }
 
   // Remove URLs duplicadas
-  matches = [...new Set(matches)];
+  matches =[...new Set(matches)];
   
-  // Remove o link raiz da revista (pra sobrar só os links dos artigos)
+  // Remove o link principal para sobrarem só os artigos
   matches = matches.filter(m => {
     const semBarra = m.replace(/\/$/, '');
     return !semBarra.endsWith(`${mesNome}-${ano}`);
@@ -146,10 +154,8 @@ async function getFallbackUrlFromTOC(issue, studyNumber) {
     if (!urlMontada.endsWith('/')) urlMontada += '/';
     return { url: urlMontada, tocUrl, matches };
   }
-  return { error: `Não encontrou artigo na posição ${studyNumber}. Só achou ${matches.length} artigos.`, tocUrl, matches };
+  return { error: `Não encontrou o artigo ${studyNumber}. A revista tem apenas ${matches.length} artigos listados.`, tocUrl, matches };
 }
-
-/* ========== RESTANTE DAS SUAS FUNÇÕES (MANTIDAS EXATAMENTE IGUAIS) ========== */
 
 async function fetchHexFromCss(html, baseUrl, tokenClass) {
   try {
@@ -163,7 +169,6 @@ async function fetchHexFromCss(html, baseUrl, tokenClass) {
       const tag = lm[0];
       const relM = tag.match(/\brel\s*=\s*["']([^"']+)["']/i);
       const hrefM = tag.match(/\bhref\s*=\s*["']([^"']+)["']/i);
-
       if (!hrefM) continue;
 
       const rel = (relM ? relM[1] : "").toLowerCase();
