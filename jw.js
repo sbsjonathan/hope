@@ -336,9 +336,18 @@ function PROCESSADOR_7(html) {
       t = t.replace(/<\s*strong\s*>/gi, "__STRONG_OPEN__").replace(/<\s*\/\s*strong\s*>/gi, "__STRONG_CLOSE__");
       t = t.replace(/<\s*em\s*>/gi, "__EM_OPEN__").replace(/<\s*\/\s*em\s*>/gi, "__EM_CLOSE__");
       
-      const links = [];
-      t = t.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, (m) => {
-          links.push(m);
+      const links =[];
+      // CAÇA TODOS OS LINKS E OS TRANSFORMA NO PADRÃO ESPERADO
+      t = t.replace(/<a\b[^>]*\bhref=(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi, (m, quote, href, inner) => {
+          let url = href;
+          // Se for link relativo da jw, coloca o domínio
+          if (url.startsWith("/")) {
+              url = "https://jw.org" + url;
+          }
+          // Limpa o texto interno para retirar marcações temporárias e outras tags inúteis
+          let text = inner.replace(/__[A-Z]+_[A-Z]+__/g, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
+          
+          links.push(`<link><a href="${url}">${text}</a></link>`);
           return `__LINK_${links.length - 1}__`;
       });
       
@@ -347,6 +356,8 @@ function PROCESSADOR_7(html) {
       t = t.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>");
       t = t.replace(/__STRONG_OPEN__/g, "<strong>").replace(/__STRONG_CLOSE__/g, "</strong>");
       t = t.replace(/__EM_OPEN__/g, "<em>").replace(/__EM_CLOSE__/g, "</em>");
+      
+      // RESTAURA OS LINKS AGORA LIMPÍSSIMOS E ENVOLTOS NA TAG <LINK>
       t = t.replace(/__LINK_(\d+)__/g, (m, idx) => links[parseInt(idx)]);
       
       return t.replace(/\s+/g, " ").trim();
@@ -368,6 +379,7 @@ function PROCESSADOR_7(html) {
           }
           
           let noteText = preserveFormatAndLinks(cleanInner);
+          // Força o espaço em branco após o asterisco no início da nota
           noteText = noteText.replace(/^\s*\*\s*/, "* ");
           
           if (noteText) notes.push(`<nota> ${noteText}</nota>`);
@@ -380,6 +392,7 @@ function PROCESSADOR_7(html) {
   out = out.replace(/<\/div>\s*(<recap>)/gi, "$1"); 
   out = out.replace(/(<\/recap>)\s*<\/div>/gi, "$1");
   
+  // Limpa o resto das divs inúteis que sobram no final
   out = out.replace(/(?:<div\b[^>]*>|<\/div>|\s)+$/gi, "");
 
   if (notes.length > 0) {
@@ -388,3 +401,4 @@ function PROCESSADOR_7(html) {
 
   return out;
 }
+// <<<PROCESSADOR_7_FIM<<<
