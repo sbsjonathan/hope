@@ -422,10 +422,10 @@ function PROCESSADOR_8(html) {
          titulo = stripTags(tHtml).replace(/\s+/g, " ").trim();
       }
 
-      // 2. Extrai sequencialmente parágrafos e listas do conteúdo
-      const lines = [];
+      // 2. Extrai sequencialmente os blocos
       const blockRegex = /<(p|li)\b[^>]*>([\s\S]*?)<\/\1>/gi;
       let bm;
+      let blocks =[];
       
       while ((bm = blockRegex.exec(asideInner)) !== null) {
         const tag = bm[1].toLowerCase();
@@ -433,27 +433,41 @@ function PROCESSADOR_8(html) {
 
         // Ignora caso a regex tenha capturado o próprio título sem querer
         let plainTextCheck = stripTags(inner).replace(/\s+/g, " ").trim();
-        if (plainTextCheck === titulo) continue;
+        if (!plainTextCheck || plainTextCheck === titulo) continue;
 
-        // Transforma link de rodapé do quadro em " * "
+        // Transforma o link da nota de rodapé no clássico " * "
         inner = inner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\2[^>]*>[\s\S]*?<\/a>/gi, " * ");
 
-        // Protege os versículos bíblicos
+        // Protege e limpa tags
         let text = inner.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__").replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
-        
-        // Limpa o lixo HTML (como o <span> e o <p> dentro do <li>)
         text = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-        
-        // Restaura as tags <bbl>
         text = text.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>").trim();
 
         if (text && text !== "*") {
-           if (tag === "li") lines.push(`• ${text}`);
-           else lines.push(text);
+           blocks.push({ tag, text });
         }
       }
 
-      return `\n\n<quadro>\n${titulo}\n${lines.join("\n")}\n</quadro>\n\n`;
+      // 3. Monta o texto aplicando a regra visual de espaçamento
+      let quadroContent = `\n\n<quadro>\n${titulo}\n`;
+      let prevTag = "";
+      
+      for (let i = 0; i < blocks.length; i++) {
+         const { tag, text } = blocks[i];
+         
+         if (tag === "li") {
+             // Se o anterior era um parágrafo normal, dá um espaço em branco antes de começar a lista
+             if (prevTag && prevTag !== "li") quadroContent += "\n";
+             quadroContent += `• ${text}\n`;
+         } else {
+             // Se for um parágrafo normal (e não for a primeira linha abaixo do título), dá espaço
+             if (prevTag) quadroContent += "\n";
+             quadroContent += `${text}\n`;
+         }
+         prevTag = tag;
+      }
+
+      return quadroContent + `</quadro>\n\n`;
     }
   );
 
