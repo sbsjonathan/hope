@@ -431,14 +431,11 @@ function PROCESSADOR_8(html) {
         const tag = bm[1].toLowerCase();
         let inner = bm[2];
 
-        // Ignora caso a regex tenha capturado o próprio título sem querer
         let plainTextCheck = stripTags(inner).replace(/\s+/g, " ").trim();
         if (!plainTextCheck || plainTextCheck === titulo) continue;
 
-        // Transforma o link da nota de rodapé no clássico " * "
         inner = inner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\2[^>]*>[\s\S]*?<\/a>/gi, " * ");
 
-        // Protege e limpa tags
         let text = inner.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__").replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
         text = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
         text = text.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>").trim();
@@ -448,23 +445,22 @@ function PROCESSADOR_8(html) {
         }
       }
 
-      // 3. Monta o texto aplicando a regra visual de espaçamento
+      // 3. Monta o texto aplicando a regra do RESPIRO TOTAL (linhas em branco em tudo, exceto no título)
       let quadroContent = `\n\n<quadro>\n${titulo}\n`;
-      let prevTag = "";
       
       for (let i = 0; i < blocks.length; i++) {
          const { tag, text } = blocks[i];
          
+         // A partir do segundo bloco, sempre dá um respiro (linha em branco)
+         if (i > 0) {
+             quadroContent += "\n";
+         }
+         
          if (tag === "li") {
-             // Se o anterior era um parágrafo normal, dá um espaço em branco antes de começar a lista
-             if (prevTag && prevTag !== "li") quadroContent += "\n";
              quadroContent += `• ${text}\n`;
          } else {
-             // Se for um parágrafo normal (e não for a primeira linha abaixo do título), dá espaço
-             if (prevTag) quadroContent += "\n";
              quadroContent += `${text}\n`;
          }
-         prevTag = tag;
       }
 
       return quadroContent + `</quadro>\n\n`;
