@@ -96,7 +96,7 @@ async function getFallbackUrlFromTOC(issue, studyNumber, robustHeaders) {
   const html = await res.text();
   const regex = new RegExp(`href=["'](/pt/biblioteca/revistas/sentinela-estudo-${mesNome}-${ano}/[^"']+)["']`, "gi");
 
-  let matches =[];
+  let matches = [];
   let match;
   while ((match = regex.exec(html)) !== null) matches.push(match[1]);
 
@@ -115,7 +115,7 @@ async function fetchHexFromCss(html, baseUrl, tokenClass, robustHeaders) {
   try {
     const baseMatch = html.match(/<base\b[^>]*href\s*=\s*["']([^"']+)["']/i);
     const baseHref = baseMatch ? baseMatch[1] : baseUrl;
-    const hrefs =[];
+    const hrefs = [];
     const linkRe = /<link\b[^>]*>/gi;
 
     let lm;
@@ -187,6 +187,7 @@ function processPerguntas(html) {
   );
 }
 
+// >>>PROCESSADOR_2_INICIO<<<
 function PROCESSADOR_2(html, hexColor) {
   let out = html.replace(/\r\n/g, "\n");
   const docIdMatch = out.match(/\bdocId-(\d+)\b/i);
@@ -215,6 +216,7 @@ function PROCESSADOR_2(html, hexColor) {
   return `${docId}\n\n${hexColor}\n\n` + out.slice(openEnd);
 }
 
+// >>>PROCESSADOR_3_INICIO<<<
 function PROCESSADOR_3(html) {
   let out = html.replace(/\r\n/g, "\n");
   out = out.replace(/<p\b[^>]*\bclass=(["'])[^"']*\bcontextTtl\b[^"']*\1[^>]*>[\s\S]*?<\/p>/i, (m) => `<estudo>${stripTags(m).replace(/\s+/g, " ").trim()}</estudo>\n\n`);
@@ -223,32 +225,27 @@ function PROCESSADOR_3(html) {
   return out;
 }
 
+// >>>PROCESSADOR_4_INICIO<<<
 function PROCESSADOR_4(html) {
   let out = html.replace(/\r\n/g, "\n");
   out = out.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bjsBibleLink\b[^"']*\1[^>]*>([\s\S]*?)<\/a>/gi, (_m, _q, inner) => `<bbl>${stripTags(inner).replace(/\s+/g, " ").trim()}</bbl>`);
   
-  // ==========================================
-  // NOVA REGRA: Limpeza de Notas de Rodapé (*)
-  // ==========================================
   out = out.replace(
     /<p\b[^>]*>\s*<span\b[^>]*\bclass=(["'])[^"']*\bparNum\b[^"']*\1[^>]*\bdata-pnum=(["'])(\d+)\2[^>]*>[\s\S]*?<\/span>([\s\S]*?)<\/p>/gi, 
     (_m, _q1, _q2, num, restHtml) => {
       let rest = restHtml || "";
-      
-      // Substitui <span refID>...</span> <a footnoteLink>...</a> por " * "
       rest = rest.replace(
         /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\2[^>]*>[\s\S]*?<\/a>/gi, 
         " * "
       );
-
-      // Limpeza padrão de espaços
       rest = rest.replace(/^\s+/, "").replace(/^\u00a0+/, "").replace(/\s+$/, "");
-      return `<paragrafo>${num} ${rest}</paragrafo>`;
+      return `\n\n<paragrafo>${num} ${rest}</paragrafo>\n\n`;
   });
 
   return out;
 }
 
+// >>>PROCESSADOR_5_INICIO<<<
 function PROCESSADOR_5(html) {
   let out = html.replace(/\r\n/g, "\n");
   out = out.replace(/<\/tema>\s*<\/header>[\s\S]*?(?=<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>|<p\b[^>]*\bclass)/i, "</tema>\n\n");
@@ -276,13 +273,10 @@ function PROCESSADOR_5(html) {
   return out;
 }
 
+// >>>PROCESSADOR_6_INICIO<<<
 function PROCESSADOR_6(html) {
   let out = html.replace(/\r\n/g, "\n");
-  
-  // ==========================================
-  // AJUSTE: Consumir o </div> após o aside
-  // ==========================================
-  out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bblockTeach\b[^"']*\1[^>]*>\s*<aside\b[^>]*>[\s\S]*?<\/aside>\s*<\/div>/gi, (m) => {
+  out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bblockTeach\b[^"']*\1[^>]*>\s*<aside\b[^>]*>[\s\S]*?<\/aside>/gi, (m) => {
       const h2m = m.match(/<h2\b[^>]*>[\s\S]*?<\/h2>/i);
       const titulo = h2m ? stripTags(h2m[0]).replace(/\s+/g, " ").trim() : "";
       const itens = [];
@@ -292,7 +286,7 @@ function PROCESSADOR_6(html) {
         return _mm;
       });
       if (!titulo && itens.length === 0) return m;
-      return `\n\n<recap>${(titulo + itens.map((t) => `\n\n• ${t}`).join("")).trim()}</recap>`;
+      return `\n\n<recap>\n${(titulo + itens.map((t) => `\n\n• ${t}`).join("")).trim()}</recap>`;
   });
 
   out = out.replace(
@@ -300,25 +294,18 @@ function PROCESSADOR_6(html) {
     (m) => {
       const lgMatch = m.match(/data-img-size-lg=(["'])(.*?)\1/i);
       const src = lgMatch ? lgMatch[2] : "";
-
       if (!src) return m; 
-
       const pMatch = m.match(/<figcaption\b[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>/i);
       let caption = "";
-      
       if (pMatch && pMatch[1]) {
         let pInner = pMatch[1];
         pInner = pInner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
         pInner = pInner.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi, "");
         caption = stripTags(pInner).replace(/\s+/g, " ").trim();
       }
-
       let fig = `\n\n<figure>\n  <img src="${src}">`;
-      if (caption) {
-        fig += `\n  <figcaption>\n    ${caption}\n  </figcaption>`;
-      }
+      if (caption) fig += `\n  <figcaption>\n    ${caption}\n  </figcaption>`;
       fig += `\n</figure>\n\n`;
-
       return fig;
     }
   );
@@ -326,16 +313,15 @@ function PROCESSADOR_6(html) {
   return out;
 }
 
+// >>>PROCESSADOR_7_INICIO<<<
 function PROCESSADOR_7(html) {
   let out = html.replace(/\r\n/g, "\n");
+  
   out = out.replace(/<h2\b[^>]*\bclass=(["'])[^"']*\bdu-textAlign--center\b[^"']*\1[^>]*>[\s\S]*?<\/h2>/gi, (m) => {
       const txt = stripTags(m).replace(/\s+/g, " ").trim();
       return txt ? `\n\n<subtitulo>${txt}</subtitulo>\n\n` : m;
   });
   
-  // ==========================================
-  // NOVA REGRA: Cântico Final Limpo (usando a div container)
-  // ==========================================
   out = out.replace(
     /<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\1[^>]*>\s*<p\b[^>]*>[\s\S]*?CÂNTICO[\s\S]*?<\/p>\s*<\/div>/gi,
     (m) => {
@@ -345,24 +331,28 @@ function PROCESSADOR_7(html) {
     }
   );
 
-  out = out.replace(/<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi, (m) => {
-      const pMatch = m.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i);
-      if (!pMatch) return m;
-      let inner = pMatch[1].replace(/<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i, "");
-      const note = inner.replace(/\s+/g, " ").trim();
-      return note ? `\n\n<nota>${note}</nota>\n\n` : "";
+  out = out.replace(/<p\b[^>]*>([\s\S]*?)<\/p>/gi, (m, inner) => {
+      const isNote = 
+          /<a\b[^>]*\bclass=(["'])[^"']*\bfn-symbol\b[^"']*\1[^>]*>/i.test(inner) ||
+          /<strong>(?:ENTENDA MELHOR|DESCRIÇÃO DA IMAGEM|Para ver mais|Veja o quadro|Veja o artigo|Compare)/i.test(inner) ||
+          /class=(["'])[^"']*\bfootnote\b[^"']*\1/i.test(m);
+
+      if (isNote) {
+          let cleanInner = inner.replace(/<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i, (aMatch) => {
+              return stripTags(aMatch) + " ";
+          });
+          const noteText = stripTags(cleanInner).replace(/\s+/g, " ").trim();
+          if (noteText) return `\n\n<nota>${noteText}</nota>\n\n`;
+      }
+      return m;
   });
-  
+
   out = out.replace(/<\/?article\b[^>]*>/gi, "");
+  out = out.replace(/<\/div>\s*(<recap>)/gi, "$1"); 
+  out = out.replace(/(<\/recap>)\s*<\/div>/gi, "$1");
   
   const lastNotaEnd = out.lastIndexOf("</nota>");
   if (lastNotaEnd !== -1) out = out.slice(0, lastNotaEnd + "</nota>".length) + "\n";
-  
-  // ==========================================
-  // LIMPEZA FINAL DE LIXO (Divs orfãs)
-  // ==========================================
-  out = out.replace(/<\/div>\s*(<recap>)/gi, "$1"); 
-  out = out.replace(/(<\/recap>)\s*<\/div>/gi, "$1");
 
   return out;
 }
