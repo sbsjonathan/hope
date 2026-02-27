@@ -260,6 +260,8 @@ function PROCESSADOR_5(html) {
 
 function PROCESSADOR_6(html) {
   let out = html.replace(/\r\n/g, "\n");
+  
+  // Regra da recapitulação (Mantida)
   out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bblockTeach\b[^"']*\1[^>]*>\s*<aside\b[^>]*>[\s\S]*?<\/aside>/gi, (m) => {
       const h2m = m.match(/<h2\b[^>]*>[\s\S]*?<\/h2>/i);
       const titulo = h2m ? stripTags(h2m[0]).replace(/\s+/g, " ").trim() : "";
@@ -272,13 +274,40 @@ function PROCESSADOR_6(html) {
       if (!titulo && itens.length === 0) return m;
       return `\n\n<recap>${(titulo + itens.map((t) => `\n\n• ${t}`).join("")).trim()}</recap>`;
   });
-  out = out.replace(/<div\b[^>]*\bid=(["'])f\d+\1[^>]*>[\s\S]*?<figure\b[^>]*>[\s\S]*?<span\b[^>]*\bclass=(["']).*?data-img-size-lg=(["'])(.*?)\3/gi, (m, id, qClass, qLg, src) => {
-      if (!src) return m;
-      const pMatch = m.match(/<figcaption\b[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/figcaption>/i);
-      if (!pMatch || !pMatch[1]) return m;
-      let pInner = pMatch[1].replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "").replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi, "");
-      return `\n\n<figure>\n <img src="${src}" />\n <figcaption>\n${stripTags(pInner).trim()}\n </figcaption>\n</figure>\n\n`;
-  });
+
+  // NOVA REGRA DA FIGURE (Remove divs, pega LG, remove HR e ALT)
+  out = out.replace(
+    /<div\b[^>]*\bid=(["'])f\d+\1[^>]*>[\s\S]*?<figure\b[^>]*>[\s\S]*?<\/figure>\s*<\/div>(?:\s*<hr\b[^>]*>)?/gi,
+    (m) => {
+      // 1. Extrai o link LG
+      const lgMatch = m.match(/data-img-size-lg=(["'])(.*?)\1/i);
+      const src = lgMatch ? lgMatch[2] : "";
+
+      if (!src) return m; // Se falhar, não quebra o texto
+
+      // 2. Extrai a legenda
+      const pMatch = m.match(/<figcaption\b[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>/i);
+      let caption = "";
+      
+      if (pMatch && pMatch[1]) {
+        let pInner = pMatch[1];
+        // Remove links e classes sujas da legenda
+        pInner = pInner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
+        pInner = pInner.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi, "");
+        caption = stripTags(pInner).replace(/\s+/g, " ").trim();
+      }
+
+      // 3. Monta o HTML final exatamente como você desenhou
+      let fig = `\n\n<figure>\n  <img src="${src}">`;
+      if (caption) {
+        fig += `\n  <figcaption>\n    ${caption}\n  </figcaption>`;
+      }
+      fig += `\n</figure>\n\n`;
+
+      return fig;
+    }
+  );
+
   return out;
 }
 
