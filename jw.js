@@ -414,56 +414,45 @@ function PROCESSADOR_8(html) {
     /<div\b[^>]*\bclass=(["'])[^"']*\bboxSupplement\b[^"']*\1[^>]*>[\s\S]*?<aside\b[^>]*>([\s\S]*?)<\/aside>[\s\S]*?<\/div>/gi,
     (m, quote, asideInner) => {
       
+      const partes =[];
+
       // 1. Extrai o título (h2)
       const h2Match = asideInner.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i);
       let titulo = "";
       if (h2Match) {
          let tHtml = h2Match[1].replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
          titulo = stripTags(tHtml).replace(/\s+/g, " ").trim();
+         if (titulo) partes.push(titulo); // Adiciona o título como o primeiro bloco
       }
 
-      // 2. Extrai sequencialmente os blocos
+      // 2. Extrai sequencialmente os blocos (p e li)
       const blockRegex = /<(p|li)\b[^>]*>([\s\S]*?)<\/\1>/gi;
       let bm;
-      let blocks =[];
       
       while ((bm = blockRegex.exec(asideInner)) !== null) {
         const tag = bm[1].toLowerCase();
         let inner = bm[2];
 
+        // Ignora caso a regex tenha capturado o próprio título sem querer
         let plainTextCheck = stripTags(inner).replace(/\s+/g, " ").trim();
         if (!plainTextCheck || plainTextCheck === titulo) continue;
 
+        // Limpa as notas de rodapé internas
         inner = inner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\2[^>]*>[\s\S]*?<\/a>/gi, " * ");
 
+        // Protege BBL e limpa o resto do HTML
         let text = inner.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__").replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
         text = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
         text = text.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>").trim();
 
         if (text && text !== "*") {
-           blocks.push({ tag, text });
+           if (tag === "li") partes.push(`• ${text}`);
+           else partes.push(text);
         }
       }
 
-      // 3. Monta o texto aplicando a regra do RESPIRO TOTAL (linhas em branco em tudo, exceto no título)
-      let quadroContent = `\n\n<quadro>\n${titulo}\n`;
-      
-      for (let i = 0; i < blocks.length; i++) {
-         const { tag, text } = blocks[i];
-         
-         // A partir do segundo bloco, sempre dá um respiro (linha em branco)
-         if (i > 0) {
-             quadroContent += "\n";
-         }
-         
-         if (tag === "li") {
-             quadroContent += `• ${text}\n`;
-         } else {
-             quadroContent += `${text}\n`;
-         }
-      }
-
-      return quadroContent + `</quadro>\n\n`;
+      // 3. Monta o quadro unindo TODAS as partes com \n\n (espaço perfeito entre elas)
+      return `\n\n<quadro>\n${partes.join("\n\n")}\n</quadro>\n\n`;
     }
   );
 
