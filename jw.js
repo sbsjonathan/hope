@@ -13,8 +13,10 @@ export default {
     const arquivoRtf = urlParams.get("arquivo");
 
     const robustHeaders = new Headers({
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+      "Accept":
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
       "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
       "Cache-Control": "max-age=0",
       "Sec-Ch-Ua": '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
@@ -24,27 +26,50 @@ export default {
       "Sec-Fetch-Mode": "navigate",
       "Sec-Fetch-Site": "none",
       "Sec-Fetch-User": "?1",
-      "Upgrade-Insecure-Requests": "1"
+      "Upgrade-Insecure-Requests": "1",
     });
 
     try {
       if (!targetUrl && arquivoRtf) {
         const match = arquivoRtf.match(/w_T_(\d{6})_(\d{2})\.rtf/i);
         if (match) {
-          const fallbackData = await getFallbackUrlFromTOC(match[1], parseInt(match[2], 10), robustHeaders);
+          const fallbackData = await getFallbackUrlFromTOC(
+            match[1],
+            parseInt(match[2], 10),
+            robustHeaders
+          );
           if (fallbackData.url) targetUrl = fallbackData.url;
-          else return new Response(`Erro ao descobrir o link: ${fallbackData.error}`, { status: 400, headers: corsHeaders });
+          else
+            return new Response(`Erro ao descobrir o link: ${fallbackData.error}`, {
+              status: 400,
+              headers: corsHeaders,
+            });
         } else {
-          return new Response(`Expressão regex falhou no arquivoRtf`, { status: 400, headers: corsHeaders });
+          return new Response(`Expressão regex falhou no arquivoRtf`, {
+            status: 400,
+            headers: corsHeaders,
+          });
         }
       }
 
-      if (!targetUrl) return new Response(`Nenhuma URL alvo informada.`, { status: 400, headers: corsHeaders });
+      if (!targetUrl)
+        return new Response(`Nenhuma URL alvo informada.`, {
+          status: 400,
+          headers: corsHeaders,
+        });
 
-      let response = await fetch(targetUrl, { method: "GET", headers: robustHeaders, redirect: "follow" });
+      let response = await fetch(targetUrl, {
+        method: "GET",
+        headers: robustHeaders,
+        redirect: "follow",
+      });
       const rawHtml = await response.text();
 
-      if (!response.ok) return new Response(`Erro do site alvo JW.org: Status ${response.status}`, { status: response.status, headers: corsHeaders });
+      if (!response.ok)
+        return new Response(`Erro do site alvo JW.org: Status ${response.status}`, {
+          status: response.status,
+          headers: corsHeaders,
+        });
 
       let hexColor = "";
       const tokenMatch = rawHtml.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
@@ -62,7 +87,9 @@ export default {
         .on(".articleFooterLinks", { element: (el) => el.remove() })
         .on(".pageNum", { element: (el) => el.remove() });
 
-      const cleaned = await rewriter.transform(new Response(onlyArticle, { headers: { "Content-Type": "text/html;charset=UTF-8" } })).text();
+      const cleaned = await rewriter
+        .transform(new Response(onlyArticle, { headers: { "Content-Type": "text/html;charset=UTF-8" } }))
+        .text();
 
       const afterP2 = PROCESSADOR_2(cleaned, hexColor);
       const afterP3 = PROCESSADOR_3(afterP2);
@@ -74,10 +101,15 @@ export default {
       const withPerguntas = processPerguntas(afterP7);
       const finalHtml = normalizeBlankLines(withPerguntas);
 
-      return new Response(finalHtml, { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html;charset=UTF-8" } });
-
+      return new Response(finalHtml, {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "text/html;charset=UTF-8" },
+      });
     } catch (error) {
-      return new Response(`Erro no Worker: ${error.message}`, { status: 500, headers: { ...corsHeaders, "Content-Type": "text/plain;charset=UTF-8" } });
+      return new Response(`Erro no Worker: ${error.message}`, {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "text/plain;charset=UTF-8" },
+      });
     }
   },
 };
@@ -85,7 +117,20 @@ export default {
 async function getFallbackUrlFromTOC(issue, studyNumber, robustHeaders) {
   const ano = issue.slice(0, 4);
   const mesNum = issue.slice(4, 6);
-  const meses = { "01": "janeiro", "02": "fevereiro", "03": "marco", "04": "abril", "05": "maio", "06": "junho", "07": "julho", "08": "agosto", "09": "setembro", "10": "outubro", "11": "novembro", "12": "dezembro" };
+  const meses = {
+    "01": "janeiro",
+    "02": "fevereiro",
+    "03": "marco",
+    "04": "abril",
+    "05": "maio",
+    "06": "junho",
+    "07": "julho",
+    "08": "agosto",
+    "09": "setembro",
+    "10": "outubro",
+    "11": "novembro",
+    "12": "dezembro",
+  };
   const mesNome = meses[mesNum];
   if (!mesNome) return { error: "Mês inválido" };
 
@@ -94,18 +139,21 @@ async function getFallbackUrlFromTOC(issue, studyNumber, robustHeaders) {
   if (!res.ok) return { error: `Bloqueio: ${res.status}` };
 
   const html = await res.text();
-  const regex = new RegExp(`href=["'](/pt/biblioteca/revistas/sentinela-estudo-${mesNome}-${ano}/[^"']+)["']`, "gi");
+  const regex = new RegExp(
+    `href=["'](/pt/biblioteca/revistas/sentinela-estudo-${mesNome}-${ano}/[^"']+)["']`,
+    "gi"
+  );
 
-  let matches =[];
+  let matches = [];
   let match;
   while ((match = regex.exec(html)) !== null) matches.push(match[1]);
 
-  matches = [...new Set(matches)].filter(m => !m.replace(/\/$/, '').endsWith(`${mesNome}-${ano}`));
+  matches = [...new Set(matches)].filter((m) => !m.replace(/\/$/, "").endsWith(`${mesNome}-${ano}`));
 
   const idx = studyNumber - 1;
   if (idx >= 0 && idx < matches.length) {
     let urlMontada = `https://www.jw.org` + matches[idx];
-    if (!urlMontada.endsWith('/')) urlMontada += '/';
+    if (!urlMontada.endsWith("/")) urlMontada += "/";
     return { url: urlMontada };
   }
   return { error: `Artigo ${studyNumber} não encontrado.` };
@@ -115,7 +163,7 @@ async function fetchHexFromCss(html, baseUrl, tokenClass, robustHeaders) {
   try {
     const baseMatch = html.match(/<base\b[^>]*href\s*=\s*["']([^"']+)["']/i);
     const baseHref = baseMatch ? baseMatch[1] : baseUrl;
-    const hrefs =[];
+    const hrefs = [];
     const linkRe = /<link\b[^>]*>/gi;
 
     let lm;
@@ -136,25 +184,42 @@ async function fetchHexFromCss(html, baseUrl, tokenClass, robustHeaders) {
       if (abs.toLowerCase().includes(".css")) hrefs.push(abs);
     }
 
-    const collectorUrl = hrefs.find((u) => /collector(\.|-)?[^/]*\.css/i.test(u)) || hrefs.find((u) => /collector/i.test(u));
+    const collectorUrl =
+      hrefs.find((u) => /collector(\.|-)?[^/]*\.css/i.test(u)) || hrefs.find((u) => /collector/i.test(u));
     if (collectorUrl) {
       const cssResp = await fetch(collectorUrl, { method: "GET", headers: robustHeaders, redirect: "follow" });
       if (cssResp.ok) {
         const css = await cssResp.text();
         const esc = tokenClass.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        const bgHexRe = new RegExp("\\.jwac\\s+\\." + esc + "\\b[\\s\\S]*?\\{[\\s\\S]*?background-color\\s*:\\s*(#[0-9a-fA-F]{3,6})", "i");
+        const bgHexRe = new RegExp(
+          "\\.jwac\\s+\\." +
+            esc +
+            "\\b[\\s\\S]*?\\{[\\s\\S]*?background-color\\s*:\\s*(#[0-9a-fA-F]{3,6})",
+          "i"
+        );
         let bgM = css.match(bgHexRe);
         if (bgM && bgM[1]) return bgM[1];
-        const fbg = css.match(new RegExp("\\." + esc + "\\b[\\s\\S]*?\\{[\\s\\S]*?background-color\\s*:\\s*(#[0-9a-fA-F]{3,6})", "i"));
+        const fbg = css.match(
+          new RegExp(
+            "\\." + esc + "\\b[\\s\\S]*?\\{[\\s\\S]*?background-color\\s*:\\s*(#[0-9a-fA-F]{3,6})",
+            "i"
+          )
+        );
         if (fbg && fbg[1]) return fbg[1];
       }
     }
-  } catch (e) { return null; }
+  } catch (e) {
+    return null;
+  }
   return null;
 }
 
 function normalizeBlankLines(html) {
-  return html.replace(/\r\n/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+  return html
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim() + "\n";
 }
 
 function keepOnlyArticle(html) {
@@ -166,14 +231,23 @@ function keepOnlyArticle(html) {
   return src.slice(start, start + endMatch.index) + "</article>";
 }
 
-function stripTags(s) { return s.replace(/<[^>]+>/g, ""); }
+function stripTags(s) {
+  return s.replace(/<[^>]+>/g, "");
+}
 
 function processPerguntas(html) {
   const preserveAllowedTags = (s) => {
     let t = (s || "").replace(/\r\n/g, "\n");
-    t = t.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bjsBibleLink\b[^"']*\1[^>]*>([\s\S]*?)<\/a>/gi, (_m, _q, inner) => `<bbl>${stripTags(inner).replace(/\s+/g, " ").trim()}</bbl>`);
-    t = t.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__").replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
-    t = t.replace(/<\s*strong\s*>/gi, "__STRONG_OPEN__").replace(/<\s*\/\s*strong\s*>/gi, "__STRONG_CLOSE__");
+    t = t.replace(
+      /<a\b[^>]*\bclass=(["'])[^"']*\bjsBibleLink\b[^"']*\1[^>]*>([\s\S]*?)<\/a>/gi,
+      (_m, _q, inner) => `<bbl>${stripTags(inner).replace(/\s+/g, " ").trim()}</bbl>`
+    );
+    t = t
+      .replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__")
+      .replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
+    t = t
+      .replace(/<\s*strong\s*>/gi, "__STRONG_OPEN__")
+      .replace(/<\s*\/\s*strong\s*>/gi, "__STRONG_CLOSE__");
     t = t.replace(/<\s*em\s*>/gi, "__EM_OPEN__").replace(/<\s*\/\s*em\s*>/gi, "__EM_CLOSE__");
     t = t.replace(/<[^>]+>/g, "");
     t = t.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>");
@@ -183,7 +257,12 @@ function processPerguntas(html) {
   };
   return html.replace(
     /<p\b[^>]*\bclass=(["'])[^"']*\bqu\b[^"']*\1[^>]*>\s*<strong[^>]*>\s*([\s\S]*?)\s*<\/strong>([\s\S]*?)<\/p>/gi,
-    (_m, _q, strongPart, rest) => `\n\n<pergunta>${(stripTags(strongPart).replace(/\s+/g, "").trim() ? stripTags(strongPart).replace(/\s+/g, "").trim() + " " : "") + preserveAllowedTags(rest)}</pergunta>\n\n`
+    (_m, _q, strongPart, rest) =>
+      `\n\n<pergunta>${
+        (stripTags(strongPart).replace(/\s+/g, "").trim()
+          ? stripTags(strongPart).replace(/\s+/g, "").trim() + " "
+          : "") + preserveAllowedTags(rest)
+      }</pergunta>\n\n`
   );
 }
 
@@ -197,17 +276,23 @@ function PROCESSADOR_2(html, hexColor) {
   const tt2OpenIdx = tt2OpenMatch.index;
   const tt2OpenTag = tt2OpenMatch[0];
   const openEnd = tt2OpenIdx + tt2OpenTag.length;
-  let i = openEnd, depth = 1;
+  let i = openEnd,
+    depth = 1;
   while (i < out.length) {
     const nextOpen = out.slice(i).search(/<div\b/i);
     const nextClose = out.slice(i).search(/<\/div\s*>/i);
     if (nextClose < 0) break;
-    if (nextOpen >= 0 && nextOpen < nextClose) { depth++; i += nextOpen + 4; continue; }
+    if (nextOpen >= 0 && nextOpen < nextClose) {
+      depth++;
+      i += nextOpen + 4;
+      continue;
+    }
     depth--;
     const closeStart = i + nextClose;
     const closeEnd = closeStart + out.slice(closeStart).match(/<\/div\s*>/i)[0].length;
     if (depth === 0) {
-      const inside = out.slice(openEnd, closeStart), rest = out.slice(closeEnd);
+      const inside = out.slice(openEnd, closeStart),
+        rest = out.slice(closeEnd);
       return `${docId}\n\n${hexColor}\n\n` + inside + rest;
     }
     i = closeEnd;
@@ -217,35 +302,47 @@ function PROCESSADOR_2(html, hexColor) {
 
 function PROCESSADOR_3(html) {
   let out = html.replace(/\r\n/g, "\n");
-  out = out.replace(/<p\b[^>]*\bclass=(["'])[^"']*\bcontextTtl\b[^"']*\1[^>]*>[\s\S]*?<\/p>/i, (m) => `<estudo>${stripTags(m).replace(/\s+/g, " ").trim()}</estudo>\n\n`);
-  out = out.replace(/<div\b[^>]*\bid=(?:"|')tt4(?:"|')[^>]*>[\s\S]*?<\/div>/i, (m) => `<cantico>${stripTags(m).replace(/\s+/g, " ").trim()}</cantico>\n\n`);
-  out = out.replace(/<h1\b[^>]*>[\s\S]*?<\/h1>/i, (m) => `<tema>${stripTags(m).replace(/\s+/g, " ").trim()}</tema>\n\n`);
+  out = out.replace(
+    /<p\b[^>]*\bclass=(["'])[^"']*\bcontextTtl\b[^"']*\1[^>]*>[\s\S]*?<\/p>/i,
+    (m) => `<estudo>${stripTags(m).replace(/\s+/g, " ").trim()}</estudo>\n\n`
+  );
+  out = out.replace(
+    /<div\b[^>]*\bid=(?:"|')tt4(?:"|')[^>]*>[\s\S]*?<\/div>/i,
+    (m) => `<cantico>${stripTags(m).replace(/\s+/g, " ").trim()}</cantico>\n\n`
+  );
+  out = out.replace(
+    /<h1\b[^>]*>[\s\S]*?<\/h1>/i,
+    (m) => `<tema>${stripTags(m).replace(/\s+/g, " ").trim()}</tema>\n\n`
+  );
   return out;
 }
 
 function PROCESSADOR_4(html) {
   let out = html.replace(/\r\n/g, "\n");
 
-  // Converte links bíblicos em <bbl> cedo, porque depois a gente vai preservar esses pedaços
-  out = out.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bjsBibleLink\b[^"']*\1[^>]*>([\s\S]*?)<\/a>/gi, (_m, _q, inner) => `<bbl>${stripTags(inner).replace(/\s+/g, " ").trim()}</bbl>`);
+  out = out.replace(
+    /<a\b[^>]*\bclass=(["'])[^"']*\bjsBibleLink\b[^"']*\1[^>]*>([\s\S]*?)<\/a>/gi,
+    (_m, _q, inner) => `<bbl>${stripTags(inner).replace(/\s+/g, " ").trim()}</bbl>`
+  );
 
-  // Troca a marcação bruta de nota de rodapé por " * " (com espaço dos dois lados)
   const footnoteToAsterisk = (s) => {
-    let t = (s || "");
+    let t = s || "";
 
-    // caso padrão: <span class="refID"...></span><a class="footnoteLink"...>a</a>
     t = t.replace(
       /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\2[^>]*>[\s\S]*?<\/a>/gi,
       " * "
     );
 
-    // fallback: só o link
-    t = t.replace(/\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>\s*/gi, " * ");
+    t = t.replace(
+      /\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>\s*/gi,
+      " * "
+    );
 
-    // fallback: só o span
-    t = t.replace(/\s*<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*/gi, " ");
+    t = t.replace(
+      /\s*<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*/gi,
+      " "
+    );
 
-    // normaliza espaço em volta do asterisco
     t = t.replace(/\s*\*\s*/g, " * ");
     t = t.replace(/\s{2,}/g, " ");
     return t;
@@ -254,9 +351,9 @@ function PROCESSADOR_4(html) {
   out = out.replace(
     /<p\b[^>]*>\s*<span\b[^>]*\bclass=(["'])[^"']*\bparNum\b[^"']*\1[^>]*\bdata-pnum=(["'])(\d+)\2[^>]*>[\s\S]*?<\/span>([\s\S]*?)<\/p>/gi,
     (_m, _q1, _q2, num, restHtml) => {
-      let rest = (restHtml || "");
+      let rest = (restHtml || "").replace(/^\s+/, "").replace(/^\u00a0+/, "").replace(/\s+$/, "");
       rest = footnoteToAsterisk(rest);
-      rest = rest.replace(/^\s+/, "").replace(/^\u00a0+/, "").replace(/\s+$/, "");
+      rest = rest.replace(/\s+\)/g, ")").replace(/\(\s+/g, "(").replace(/\s+,/g, ",").trim();
       return `<paragrafo>${num} ${rest}</paragrafo>`;
     }
   );
@@ -266,7 +363,10 @@ function PROCESSADOR_4(html) {
 
 function PROCESSADOR_5(html) {
   let out = html.replace(/\r\n/g, "\n");
-  out = out.replace(/<\/tema>\s*<\/header>[\s\S]*?(?=<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>|<p\b[^>]*\bclass)/i, "</tema>\n\n");
+  out = out.replace(
+    /<\/tema>\s*<\/header>[\s\S]*?(?=<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>|<p\b[^>]*\bclass)/i,
+    "</tema>\n\n"
+  );
   out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bbodyTxt\b[^"']*\1[^>]*>/gi, "");
 
   const stripTagsExceptBbl = (s) => {
@@ -274,9 +374,12 @@ function PROCESSADOR_5(html) {
     t = t.replace(/<[^>]+>/g, "");
     return t.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>");
   };
-  out = out.replace(/<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bthemeScrp\b[^"']*\1[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi, (_m, _q, inner) => `<citacao>${stripTagsExceptBbl(inner).replace(/\s+/g, " ").trim()}</citacao>\n\n`);
 
-  // NOVA INTELIGÊNCIA DO OBJETIVO (Isola qualquer div ttX que tenha "OBJETIVO" em negrito)
+  out = out.replace(
+    /<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bthemeScrp\b[^"']*\1[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi,
+    (_m, _q, inner) => `<citacao>${stripTagsExceptBbl(inner).replace(/\s+/g, " ").trim()}</citacao>\n\n`
+  );
+
   out = out.replace(
     /<div\b[^>]*\bid=(?:"|')tt\d+(?:"|')[^>]*>([\s\S]*?)<\/div>/gi,
     (m, inner) => {
@@ -294,7 +397,9 @@ function PROCESSADOR_5(html) {
 
 function PROCESSADOR_6(html) {
   let out = html.replace(/\r\n/g, "\n");
-  out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bblockTeach\b[^"']*\1[^>]*>\s*<aside\b[^>]*>[\s\S]*?<\/aside>/gi, (m) => {
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])[^"']*\bblockTeach\b[^"']*\1[^>]*>\s*<aside\b[^>]*>[\s\S]*?<\/aside>/gi,
+    (m) => {
       const h2m = m.match(/<h2\b[^>]*>[\s\S]*?<\/h2>/i);
       const titulo = h2m ? stripTags(h2m[0]).replace(/\s+/g, " ").trim() : "";
       const itens = [];
@@ -304,27 +409,42 @@ function PROCESSADOR_6(html) {
         return _mm;
       });
       if (!titulo && itens.length === 0) return m;
-      return `\n\n<recap>${(titulo + itens.map((t) => `\n\n• ${t}`).join("")).trim()}</recap>\n\n`;
-  });
-  out = out.replace(/<div\b[^>]*\bid=(["'])f\d+\1[^>]*>[\s\S]*?<figure\b[^>]*>[\s\S]*?<span\b[^>]*\bclass=(["']).*?data-img-size-lg=(["'])(.*?)\3/gi, (m, id, qClass, qLg, src) => {
+      return `\n\n<recap>${(titulo + itens.map((t) => `\n\n• ${t}`).join("")).trim()}</recap>`;
+    }
+  );
+
+  out = out.replace(
+    /<div\b[^>]*\bid=(["'])f\d+\1[^>]*>[\s\S]*?<figure\b[^>]*>[\s\S]*?<span\b[^>]*\bclass=(["']).*?data-img-size-lg=(["'])(.*?)\3/gi,
+    (m, id, qClass, qLg, src) => {
       if (!src) return m;
       const pMatch = m.match(/<figcaption\b[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/figcaption>/i);
       if (!pMatch || !pMatch[1]) return m;
-      let pInner = pMatch[1].replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "").replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi, "");
+      let pInner = pMatch[1]
+        .replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "")
+        .replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi, "");
       return `\n\n<figure>\n <img src="${src}" />\n <figcaption>\n${stripTags(pInner).trim()}\n </figcaption>\n</figure>\n\n`;
-  });
+    }
+  );
+
   return out;
 }
 
 function PROCESSADOR_7(html) {
   let out = html.replace(/\r\n/g, "\n");
-  out = out.replace(/<h2\b[^>]*\bclass=(["'])[^"']*\bdu-textAlign--center\b[^"']*\1[^>]*>[\s\S]*?<\/h2>/gi, (m) => {
+
+  out = out.replace(
+    /<h2\b[^>]*\bclass=(["'])[^"']*\bdu-textAlign--center\b[^"']*\1[^>]*>[\s\S]*?<\/h2>/gi,
+    (m) => {
       const txt = stripTags(m).replace(/\s+/g, " ").trim();
       return txt ? `\n\n<subtitulo>${txt}</subtitulo>\n\n` : m;
-  });
-  out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\1[^>]*>\s*<p\b[^>]*\bclass/gi, (m) => m);
+    }
+  );
 
-  // Cantico que aparece lá no final (pubRefs)
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\1[^>]*>\s*<p\b[^>]*\bclass/gi,
+    (m) => m
+  );
+
   out = out.replace(
     /<div\b[^>]*\bclass=(["'])[^"']*\bdu-color--textSubdued\b[^"']*\1[^>]*>\s*<p\b[^>]*\bclass=(["'])[^"']*\bpubRefs\b[^"']*\2[^>]*>[\s\S]*?<\/p>\s*<\/div>/gi,
     (m) => {
@@ -333,19 +453,24 @@ function PROCESSADOR_7(html) {
     }
   );
 
-  // Remove lixo de div "solta" colando em volta do recap
   out = out.replace(/<\/div>\s*(<recap>)/gi, "$1");
   out = out.replace(/(<\/recap>)\s*<\/div>/gi, "$1");
 
-  out = out.replace(/<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi, (m) => {
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])groupFootnote\1[^>]*>[\s\S]*?<\/div>\s*<\/div>/gi,
+    (m) => {
       const pMatch = m.match(/<p\b[^>]*>([\s\S]*?)<\/p>/i);
       if (!pMatch) return m;
       let inner = pMatch[1].replace(/<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i, "");
       const note = inner.replace(/\s+/g, " ").trim();
       return note ? `\n\n<nota>${note}</nota>\n\n` : "";
-  });
+    }
+  );
+
   out = out.replace(/<\/?article\b[^>]*>/gi, "");
+
   const lastNotaEnd = out.lastIndexOf("</nota>");
   if (lastNotaEnd !== -1) out = out.slice(0, lastNotaEnd + "</nota>".length) + "\n";
+
   return out;
 }
