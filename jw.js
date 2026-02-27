@@ -96,7 +96,7 @@ async function getFallbackUrlFromTOC(issue, studyNumber, robustHeaders) {
   const html = await res.text();
   const regex = new RegExp(`href=["'](/pt/biblioteca/revistas/sentinela-estudo-${mesNome}-${ano}/[^"']+)["']`, "gi");
 
-  let matches = [];
+  let matches =[];
   let match;
   while ((match = regex.exec(html)) !== null) matches.push(match[1]);
 
@@ -331,6 +331,28 @@ function PROCESSADOR_7(html) {
     }
   );
 
+  const preserveFormatAndLinks = (s) => {
+      let t = s.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__").replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
+      t = t.replace(/<\s*strong\s*>/gi, "__STRONG_OPEN__").replace(/<\s*\/\s*strong\s*>/gi, "__STRONG_CLOSE__");
+      t = t.replace(/<\s*em\s*>/gi, "__EM_OPEN__").replace(/<\s*\/\s*em\s*>/gi, "__EM_CLOSE__");
+      
+      const links = [];
+      t = t.replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, (m) => {
+          links.push(m);
+          return `__LINK_${links.length - 1}__`;
+      });
+      
+      t = t.replace(/<[^>]+>/g, "");
+      
+      t = t.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>");
+      t = t.replace(/__STRONG_OPEN__/g, "<strong>").replace(/__STRONG_CLOSE__/g, "</strong>");
+      t = t.replace(/__EM_OPEN__/g, "<em>").replace(/__EM_CLOSE__/g, "</em>");
+      t = t.replace(/__LINK_(\d+)__/g, (m, idx) => links[parseInt(idx)]);
+      
+      return t.replace(/\s+/g, " ").trim();
+  };
+
+  const notes =[];
   out = out.replace(/<p\b[^>]*>([\s\S]*?)<\/p>/gi, (m, inner) => {
       const isNote = 
           /<a\b[^>]*\bclass=(["'])[^"']*\bfn-symbol\b[^"']*\1[^>]*>/i.test(inner) ||
@@ -338,11 +360,18 @@ function PROCESSADOR_7(html) {
           /class=(["'])[^"']*\bfootnote\b[^"']*\1/i.test(m);
 
       if (isNote) {
-          let cleanInner = inner.replace(/<a\b[^>]*\bclass=(["'])fn-symbol\1[^>]*>[\s\S]*?<\/a>/i, (aMatch) => {
-              return stripTags(aMatch) + " ";
-          });
-          const noteText = stripTags(cleanInner).replace(/\s+/g, " ").trim();
-          if (noteText) return `\n\n<nota>${noteText}</nota>\n\n`;
+          let cleanInner = inner;
+          if (/<a\b[^>]*\bclass=(["'])[^"']*\bfn-symbol\b[^"']*\1[^>]*>/i.test(cleanInner)) {
+              cleanInner = cleanInner.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfn-symbol\b[^"']*\1[^>]*>[\s\S]*?<\/a>/i, " * ");
+          } else {
+              cleanInner = " * " + cleanInner;
+          }
+          
+          let noteText = preserveFormatAndLinks(cleanInner);
+          noteText = noteText.replace(/^\s*\*\s*/, "* ");
+          
+          if (noteText) notes.push(`<nota> ${noteText}</nota>`);
+          return ""; 
       }
       return m;
   });
@@ -351,8 +380,11 @@ function PROCESSADOR_7(html) {
   out = out.replace(/<\/div>\s*(<recap>)/gi, "$1"); 
   out = out.replace(/(<\/recap>)\s*<\/div>/gi, "$1");
   
-  const lastNotaEnd = out.lastIndexOf("</nota>");
-  if (lastNotaEnd !== -1) out = out.slice(0, lastNotaEnd + "</nota>".length) + "\n";
+  out = out.replace(/(?:<div\b[^>]*>|<\/div>|\s)+$/gi, "");
+
+  if (notes.length > 0) {
+      out += "\n\n" + notes.join("\n\n") + "\n";
+  }
 
   return out;
 }
