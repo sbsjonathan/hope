@@ -12,17 +12,6 @@ export default {
     let targetUrl = urlParams.get("url");
     const arquivoRtf = urlParams.get("arquivo");
 
-    let debugLog = {
-      receivedArquivo: arquivoRtf,
-      issueParsed: null,
-      studyParsed: null,
-      tocUrlFetched: null,
-      tocMatches:[],
-      finalTargetUrl: null,
-      error: null
-    };
-
-    // === A ARMADURA DO SEU WORKER ANTIGO ===
     const robustHeaders = new Headers({
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
       "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -42,39 +31,20 @@ export default {
       if (!targetUrl && arquivoRtf) {
         const match = arquivoRtf.match(/w_T_(\d{6})_(\d{2})\.rtf/i);
         if (match) {
-          debugLog.issueParsed = match[1];
-          debugLog.studyParsed = parseInt(match[2], 10);
-          
-          const fallbackData = await getFallbackUrlFromTOC(debugLog.issueParsed, debugLog.studyParsed, robustHeaders);
-          if (fallbackData.url) {
-            targetUrl = fallbackData.url;
-            debugLog.finalTargetUrl = targetUrl;
-          } else {
-            debugLog.error = fallbackData.error;
-          }
-          debugLog.tocUrlFetched = fallbackData.tocUrl;
-          debugLog.tocMatches = fallbackData.matches ||[];
+          const fallbackData = await getFallbackUrlFromTOC(match[1], parseInt(match[2], 10), robustHeaders);
+          if (fallbackData.url) targetUrl = fallbackData.url;
+          else return new Response(`Erro ao descobrir o link: ${fallbackData.error}`, { status: 400, headers: corsHeaders });
         } else {
-          debugLog.error = "Expressão w_T_(\\d{6})_(\\d{2}) falhou no arquivoRtf";
+          return new Response(`Expressão regex falhou no arquivoRtf`, { status: 400, headers: corsHeaders });
         }
       }
 
-      if (!targetUrl) {
-         return new Response(`<!-- DEBUG_WORKER: ${JSON.stringify(debugLog)} -->\n❌ Erro ao descobrir o link correto da JW.org.\nMotivo: ${debugLog.error}\nAbra o Console da Engrenagem para mais detalhes.`, { 
-             status: 400, headers: { ...corsHeaders, "Content-Type": "text/html;charset=UTF-8" } 
-         });
-      }
+      if (!targetUrl) return new Response(`Nenhuma URL alvo informada.`, { status: 400, headers: corsHeaders });
 
-      // Faz a requisição ao artigo com os HEADERS ROBUSTOS
       let response = await fetch(targetUrl, { method: "GET", headers: robustHeaders, redirect: "follow" });
       const rawHtml = await response.text();
 
-      if (!response.ok) {
-        debugLog.error = `Erro HTTP no site alvo: ${response.status}`;
-        return new Response(`<!-- DEBUG_WORKER: ${JSON.stringify(debugLog)} -->\nErro do site alvo JW.org: Status ${response.status}`, {
-          status: response.status, headers: { ...corsHeaders, "Content-Type": "text/html;charset=UTF-8" },
-        });
-      }
+      if (!response.ok) return new Response(`Erro do site alvo JW.org: Status ${response.status}`, { status: response.status, headers: corsHeaders });
 
       let hexColor = "";
       const tokenMatch = rawHtml.match(/\bdu-bgColor--([a-z0-9-]+)\b/i);
@@ -102,62 +72,43 @@ export default {
       const afterP7 = PROCESSADOR_7(afterP6);
       
       const withPerguntas = processPerguntas(afterP7);
-      
-      const finalHtml = normalizeBlankLines(withPerguntas) + `\n\n<!-- DEBUG_WORKER: ${JSON.stringify(debugLog)} -->`;
+      const finalHtml = normalizeBlankLines(withPerguntas);
 
       return new Response(finalHtml, { status: 200, headers: { ...corsHeaders, "Content-Type": "text/html;charset=UTF-8" } });
 
     } catch (error) {
-      debugLog.error = error.message;
-      return new Response(`<!-- DEBUG_WORKER: ${JSON.stringify(debugLog)} -->\nErro no Worker: ${error.message}`, {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "text/html;charset=UTF-8" },
-      });
+      return new Response(`Erro no Worker: ${error.message}`, { status: 500, headers: { ...corsHeaders, "Content-Type": "text/plain;charset=UTF-8" } });
     }
   },
 };
 
-// Modifiquei a função para ela RECEBER e USAR os seus headers anti-bloqueio
 async function getFallbackUrlFromTOC(issue, studyNumber, robustHeaders) {
   const ano = issue.slice(0, 4);
   const mesNum = issue.slice(4, 6);
-  const meses = {
-    "01": "janeiro", "02": "fevereiro", "03": "marco", "04": "abril", "05": "maio", "06": "junho", 
-    "07": "julho", "08": "agosto", "09": "setembro", "10": "outubro", "11": "novembro", "12": "dezembro"
-  };
-
+  const meses = { "01": "janeiro", "02": "fevereiro", "03": "marco", "04": "abril", "05": "maio", "06": "junho", "07": "julho", "08": "agosto", "09": "setembro", "10": "outubro", "11": "novembro", "12": "dezembro" };
   const mesNome = meses[mesNum];
-  if (!mesNome) return { error: "Mês inválido detectado no script" };
+  if (!mesNome) return { error: "Mês inválido" };
 
   const tocUrl = `https://www.jw.org/pt/biblioteca/revistas/sentinela-estudo-${mesNome}-${ano}/`;
-  
-  // Usando a sua armadura aqui
   const res = await fetch(tocUrl, { method: "GET", headers: robustHeaders, redirect: "follow" });
-  if (!res.ok) return { error: `A JW.org bloqueou a busca do Índice com o Erro: ${res.status}` };
+  if (!res.ok) return { error: `Bloqueio: ${res.status}` };
 
   const html = await res.text();
-  
   const regex = new RegExp(`href=["'](/pt/biblioteca/revistas/sentinela-estudo-${mesNome}-${ano}/[^"']+)["']`, "gi");
 
   let matches =[];
   let match;
-  while ((match = regex.exec(html)) !== null) {
-    matches.push(match[1]);
-  }
+  while ((match = regex.exec(html)) !== null) matches.push(match[1]);
 
-  matches = [...new Set(matches)];
-  
-  matches = matches.filter(m => {
-    const semBarra = m.replace(/\/$/, '');
-    return !semBarra.endsWith(`${mesNome}-${ano}`);
-  });
+  matches = [...new Set(matches)].filter(m => !m.replace(/\/$/, '').endsWith(`${mesNome}-${ano}`));
 
   const idx = studyNumber - 1;
   if (idx >= 0 && idx < matches.length) {
     let urlMontada = `https://www.jw.org` + matches[idx];
     if (!urlMontada.endsWith('/')) urlMontada += '/';
-    return { url: urlMontada, tocUrl, matches };
+    return { url: urlMontada };
   }
-  return { error: `Não encontrou o artigo ${studyNumber}. A revista tem apenas ${matches.length} artigos listados.`, tocUrl, matches };
+  return { error: `Artigo ${studyNumber} não encontrado.` };
 }
 
 async function fetchHexFromCss(html, baseUrl, tokenClass, robustHeaders) {
@@ -175,8 +126,7 @@ async function fetchHexFromCss(html, baseUrl, tokenClass, robustHeaders) {
       if (!hrefM) continue;
 
       const rel = (relM ? relM[1] : "").toLowerCase();
-      const asM = tag.match(/\bas\s*=\s*["']([^"']+)["']/i);
-      const asVal = (asM ? asM[1] : "").toLowerCase();
+      const asVal = (tag.match(/\bas\s*=\s*["']([^"']+)["']/i)?.[1] || "").toLowerCase();
 
       if (!rel.includes("stylesheet") && !(rel.includes("preload") && asVal === "style")) continue;
       const rawHref = hrefM[1].trim();
@@ -188,7 +138,6 @@ async function fetchHexFromCss(html, baseUrl, tokenClass, robustHeaders) {
 
     const collectorUrl = hrefs.find((u) => /collector(\.|-)?[^/]*\.css/i.test(u)) || hrefs.find((u) => /collector/i.test(u));
     if (collectorUrl) {
-      // Usando sua armadura para buscar o CSS também
       const cssResp = await fetch(collectorUrl, { method: "GET", headers: robustHeaders, redirect: "follow" });
       if (cssResp.ok) {
         const css = await cssResp.text();
@@ -205,8 +154,7 @@ async function fetchHexFromCss(html, baseUrl, tokenClass, robustHeaders) {
 }
 
 function normalizeBlankLines(html) {
-  let out = html.replace(/\r\n/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n");
-  return out.trim() + "\n";
+  return html.replace(/\r\n/g, "\n").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
 }
 
 function keepOnlyArticle(html) {
@@ -215,8 +163,7 @@ function keepOnlyArticle(html) {
   if (start < 0) return src;
   const endMatch = src.slice(start).match(/<\/article\s*>/i);
   if (!endMatch) return src.slice(start);
-  const end = start + endMatch.index;
-  return src.slice(start, end) + "</article>";
+  return src.slice(start, start + endMatch.index) + "</article>";
 }
 
 function stripTags(s) { return s.replace(/<[^>]+>/g, ""); }
@@ -236,11 +183,7 @@ function processPerguntas(html) {
   };
   return html.replace(
     /<p\b[^>]*\bclass=(["'])[^"']*\bqu\b[^"']*\1[^>]*>\s*<strong[^>]*>\s*([\s\S]*?)\s*<\/strong>([\s\S]*?)<\/p>/gi,
-    (_m, _q, strongPart, rest) => {
-      const num = stripTags(strongPart).replace(/\s+/g, "").trim();
-      const texto = preserveAllowedTags(rest);
-      return `\n\n<pergunta>${(num ? num + " " : "") + texto}</pergunta>\n\n`;
-    }
+    (_m, _q, strongPart, rest) => `\n\n<pergunta>${(stripTags(strongPart).replace(/\s+/g, "").trim() ? stripTags(strongPart).replace(/\s+/g, "").trim() + " " : "") + preserveAllowedTags(rest)}</pergunta>\n\n`
   );
 }
 
@@ -283,10 +226,7 @@ function PROCESSADOR_3(html) {
 function PROCESSADOR_4(html) {
   let out = html.replace(/\r\n/g, "\n");
   out = out.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bjsBibleLink\b[^"']*\1[^>]*>([\s\S]*?)<\/a>/gi, (_m, _q, inner) => `<bbl>${stripTags(inner).replace(/\s+/g, " ").trim()}</bbl>`);
-  out = out.replace(/<p\b[^>]*>\s*<span\b[^>]*\bclass=(["'])[^"']*\bparNum\b[^"']*\1[^>]*\bdata-pnum=(["'])(\d+)\2[^>]*>[\s\S]*?<\/span>([\s\S]*?)<\/p>/gi, (_m, _q1, _q2, num, restHtml) => {
-      let rest = (restHtml || "").replace(/^\s+/, "").replace(/^\u00a0+/, "").replace(/\s+$/, "");
-      return `<paragrafo>${num} ${rest}</paragrafo>`;
-  });
+  out = out.replace(/<p\b[^>]*>\s*<span\b[^>]*\bclass=(["'])[^"']*\bparNum\b[^"']*\1[^>]*\bdata-pnum=(["'])(\d+)\2[^>]*>[\s\S]*?<\/span>([\s\S]*?)<\/p>/gi, (_m, _q1, _q2, num, restHtml) => `<paragrafo>${num} ${(restHtml || "").replace(/^\s+/, "").replace(/^\u00a0+/, "").replace(/\s+$/, "")}</paragrafo>`);
   return out;
 }
 
@@ -294,13 +234,27 @@ function PROCESSADOR_5(html) {
   let out = html.replace(/\r\n/g, "\n");
   out = out.replace(/<\/tema>\s*<\/header>[\s\S]*?(?=<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>|<p\b[^>]*\bclass)/i, "</tema>\n\n");
   out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bbodyTxt\b[^"']*\1[^>]*>/gi, "");
+  
   const stripTagsExceptBbl = (s) => {
     let t = s.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__").replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
     t = t.replace(/<[^>]+>/g, "");
     return t.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>");
   };
   out = out.replace(/<div\b[^>]*\bid=(?:"|')tt8(?:"|')[^>]*>[\s\S]*?<p\b[^>]*\bclass=(["'])[^"']*\bthemeScrp\b[^"']*\1[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi, (_m, _q, inner) => `<citacao>${stripTagsExceptBbl(inner).replace(/\s+/g, " ").trim()}</citacao>\n\n`);
-  out = out.replace(/<div\b[^>]*\bid=(?:"|')tt11(?:"|')[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?<strong[^>]*>\s*OBJETIVO\s*<\/strong>([\s\S]*?)<\/p>[\s\S]*?<\/div>/gi, (_m, body) => `<objetivo>OBJETIVO\n\n${stripTags(body).replace(/\s+/g, " ").trim()}</objetivo>\n\n`);
+  
+  // NOVA INTELIGÊNCIA DO OBJETIVO (Isola qualquer div ttX que tenha "OBJETIVO" em negrito)
+  out = out.replace(
+    /<div\b[^>]*\bid=(?:"|')tt\d+(?:"|')[^>]*>([\s\S]*?)<\/div>/gi,
+    (m, inner) => {
+      if (/<strong[^>]*>\s*OBJETIVO\s*<\/strong>/i.test(inner)) {
+        let txt = stripTags(inner).replace(/\s+/g, " ").trim();
+        txt = txt.replace(/^OBJETIVO\s*/i, ""); // Remove a palavra objetivo caso tenha ficado grudada no início
+        return `<objetivo>OBJETIVO\n${txt}</objetivo>\n\n`;
+      }
+      return m; // Se não for o objetivo, mantém como estava
+    }
+  );
+
   return out;
 }
 
