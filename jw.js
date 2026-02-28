@@ -6,10 +6,7 @@ const CORS_HEADERS = {
 
 export default {
   async fetch(request) {
-    // 1. Responde ao "pre-flight" do navegador
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: CORS_HEADERS });
-    }
+    if (request.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
 
     const urlParams = new URL(request.url).searchParams;
     const targetUrl = urlParams.get("url");
@@ -17,57 +14,39 @@ export default {
     if (!targetUrl) return new Response("URL faltando", { status: 400, headers: CORS_HEADERS });
 
     try {
-      // 2. Busca o site fingindo ser o Googlebot (Geralmente não é bloqueado)
+      // Usa um User-Agent genérico de navegador, sem tentar fingir ser Googlebot
       const response = await fetch(targetUrl, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
-          "Accept": "text/html"
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
         }
       });
 
+      if (!response.ok) {
+        // Se o JW.org der erro, repassamos o erro para saber o que houve
+        return new Response(`Erro no JW.org: ${response.status} ${response.statusText}`, { status: response.status, headers: CORS_HEADERS });
+      }
+
       let html = await response.text();
-      let content = "";
 
-      // 3. Lógica SIMPLES de extração
-      // Tenta achar onde começa o conteúdo real
-      let startString = "";
-      let endString = "";
-
-      // CASO 1: Revistas de Estudo (Link 2) geralmente usam "docSubContent"
-      if (html.includes('class="docSubContent"')) {
-        const startPos = html.indexOf('class="docSubContent"');
-        // Retrocede para pegar a tag <div de abertura
-        const realStart = html.lastIndexOf('<div', startPos);
-        
-        // Corta do início até o fim do arquivo (o CSS vai esconder o rodapé depois)
-        // Isso é mais seguro do que tentar adivinhar onde fecha a div
-        content = html.substring(realStart);
-      } 
-      // CASO 2: Artigos normais (Link 1) geralmente usam <article>
-      else if (html.includes('<article')) {
-         const startPos = html.indexOf('<article');
-         content = html.substring(startPos);
-      }
-      // CASO 3: Fallback para o ID "article" (muito comum em posts antigos)
-      else if (html.includes('id="article"')) {
-         const startPos = html.indexOf('id="article"');
-         const realStart = html.lastIndexOf('<div', startPos);
-         content = html.substring(realStart);
-      }
-      else {
-        // Se falhar tudo, pega o body (vai vir sujo, mas vem)
-        const bodyStart = html.indexOf('<body');
-        content = html.substring(bodyStart);
-      }
-
-      // 4. Limpa o HTML para links absolutos (Imagens funcionarem)
+      // === LIMPEZA BÁSICA ===
+      
+      // 1. Converte links relativos em absolutos (CSS, Imagens, Links)
       const origin = new URL(targetUrl).origin;
-      content = content.replace(/(href|src)="\/(?!\/)/g, `$1="${origin}/`);
+      html = html.replace(/(href|src|action)="\/(?!\/)/g, `$1="${origin}/`);
 
-      // 5. Remove scripts para evitar erros de execução
-      content = content.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "");
+      // 2. Remove TODOS os scripts (<script>...</script>)
+      // Isso impede que o player de áudio tente carregar ou que analíticos rodem
+      html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
 
-      return new Response(content, {
+      // 3. Remove CSS externo para não quebrar o seu modal
+      html = html.replace(/<link[^>]+rel="stylesheet"[^>]*>/gi, "");
+      
+      // 4. Extrai apenas o conteúdo do BODY para injetar na div
+      const bodyMatch = html.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+      const cleanBody = bodyMatch ? bodyMatch[1] : html;
+
+      return new Response(cleanBody, {
         headers: {
           ...CORS_HEADERS,
           "Content-Type": "text/html; charset=utf-8"
@@ -75,7 +54,7 @@ export default {
       });
 
     } catch (e) {
-      return new Response("Erro no Worker: " + e.message, { status: 500, headers: CORS_HEADERS });
+      return new Response("Erro 500 no Worker: " + e.message, { status: 500, headers: CORS_HEADERS });
     }
   },
 };
