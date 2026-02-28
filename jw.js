@@ -10,62 +10,52 @@ export default {
 
     const params = new URL(request.url).searchParams;
     const target = params.get("url");
+
     if (!target) return new Response("URL ausente.", { status: 400, headers: CORS_HEADERS });
+
+    // === PASSO 1: ENGANAR O SISTEMA DE SEGURANÇA ===
+    // Headers idênticos a um navegador real para evitar bloqueio 403
+    const myHeaders = new Headers();
+    myHeaders.append("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    myHeaders.append("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8");
+    myHeaders.append("Accept-Language", "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7");
+    myHeaders.append("Referer", "https://www.google.com/"); // Fingir que viemos do Google
 
     try {
       const upstream = await fetch(target, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", // Fingimos ser o Google para pegar HTML limpo
-          "Accept": "text/html",
-        },
+        headers: myHeaders,
+        redirect: "follow"
       });
 
-      let body = await upstream.text();
+      if (!upstream.ok) {
+        return new Response(`Erro ao acessar site original: ${upstream.status}`, { status: upstream.status, headers: CORS_HEADERS });
+      }
+
+      const body = await upstream.text();
       let extractedHtml = "";
 
-      // === ESTRATÉGIA UNIVERSAL ===
-      // O JW usa a classe 'docSubContent' para quase todo texto real.
-      // Se não achar, tenta 'main', se não, 'article'.
-      const markers = [
-        'class="docSubContent"',
-        'id="article"',
-        '<main',
-        '<article'
-      ];
-
-      let startIdx = -1;
+      // === PASSO 2: O CORTE BRUTO (A Lógica do Lixo) ===
+      // A tag <main> é o padrão HTML5 para "conteúdo principal". O JW usa ela.
+      // Tudo antes dela é cabeçalho (lixo), tudo depois é rodapé (lixo).
       
-      // Procura o primeiro marcador que aparecer no código
-      for (let marker of markers) {
-        startIdx = body.indexOf(marker);
-        if (startIdx !== -1) {
-          // Ajuste fino: Se achou a classe, volta um pouco para pegar a tag de abertura <div
-          if (marker.includes('class') || marker.includes('id')) {
-            startIdx = body.lastIndexOf('<div', startIdx);
-          }
-          break;
-        }
-      }
-
-      if (startIdx !== -1) {
-        // Agora procura onde o site termina (rodapé ou scripts finais)
-        const endMarkers = ['<div id="docFooter"', '<footer', '<div class="groupFoot"'];
-        let endIdx = -1;
-
-        for (let marker of endMarkers) {
-          endIdx = body.indexOf(marker, startIdx);
-          if (endIdx !== -1) break;
-        }
-
-        // Se não achou rodapé, pega um pedaço grande por segurança
-        if (endIdx === -1) endIdx = body.length;
-
-        extractedHtml = body.substring(startIdx, endIdx);
+      const mainMatch = body.match(/<main[\s\S]*?<\/main>/i);
+      
+      if (mainMatch) {
+        extractedHtml = mainMatch[0];
       } else {
-        extractedHtml = "<h3 style='padding:20px'>Não foi possível identificar o texto principal.</h3>";
+        // Fallback: Se não tiver <main>, tenta pegar o <div id="article"> (páginas muito antigas)
+        const articleMatch = body.match(/<div[^>]*id="article"[\s\S]*?<!--\s*#article\s*-->/i);
+        if (articleMatch) {
+            extractedHtml = articleMatch[0];
+        } else {
+            // Última tentativa: pega do body, mas vai vir sujo (o CSS vai ter que limpar)
+             const bodyMatch = body.match(/<body[\s\S]*?<\/body>/i);
+             extractedHtml = bodyMatch ? bodyMatch[0] : "<h1>Erro: Não foi possível extrair o conteúdo.</h1>";
+        }
       }
 
-      // === LIMPEZA DE ENDEREÇOS ===
+      // === PASSO 3: LIMPEZA DE ENDEREÇOS ===
+      // Converte links relativos (/imagem.jpg) em absolutos (https://jw.org/imagem.jpg)
       const targetUrl = new URL(target);
       const base = targetUrl.origin;
       extractedHtml = extractedHtml.replace(/(href|src)="(?!https?:\/\/|\/\/|data:)([^"]*?)"/gi,
@@ -75,16 +65,19 @@ export default {
         }
       );
 
-      // Remove scripts maliciosos ou de tracking
+      // Remove scripts para segurança
       extractedHtml = extractedHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
 
       return new Response(extractedHtml, {
         status: 200,
-        headers: { ...CORS_HEADERS, "Content-Type": "text/html; charset=utf-8" },
+        headers: {
+          ...CORS_HEADERS,
+          "Content-Type": "text/html; charset=utf-8"
+        },
       });
 
     } catch (err) {
-      return new Response("Erro no servidor worker.", { status: 500, headers: CORS_HEADERS });
+      return new Response(`Erro no Worker: ${err.message}`, { status: 500, headers: CORS_HEADERS });
     }
   },
 };
