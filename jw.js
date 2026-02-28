@@ -6,70 +6,85 @@ const CORS_HEADERS = {
 
 export default {
   async fetch(request) {
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: CORS_HEADERS });
-    }
+    if (request.method === "OPTIONS") return new Response(null, { headers: CORS_HEADERS });
 
     const params = new URL(request.url).searchParams;
     const target = params.get("url");
-
     if (!target) return new Response("URL ausente.", { status: 400, headers: CORS_HEADERS });
 
-    let targetUrl;
-    try { targetUrl = new URL(target); } 
-    catch { return new Response("URL inválida.", { status: 400, headers: CORS_HEADERS }); }
-
     try {
-      const upstream = await fetch(targetUrl.toString(), {
+      const upstream = await fetch(target, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/110.0.0.0 Safari/537.36",
+          "User-Agent": "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)", // Fingimos ser o Google para pegar HTML limpo
           "Accept": "text/html",
         },
       });
 
       let body = await upstream.text();
-      let articleContent = "";
+      let extractedHtml = "";
 
-      // MÁGICA 1: Encontrar o início do texto (Pega tanto revistas normais quanto de estudo)
-      let startIdx = body.indexOf('<article');
-      if (startIdx === -1) startIdx = body.indexOf('<div id="article"');
-      if (startIdx === -1) startIdx = body.indexOf('<div class="docSubContent"');
+      // === ESTRATÉGIA UNIVERSAL ===
+      // O JW usa a classe 'docSubContent' para quase todo texto real.
+      // Se não achar, tenta 'main', se não, 'article'.
+      const markers = [
+        'class="docSubContent"',
+        'id="article"',
+        '<main',
+        '<article'
+      ];
 
-      if (startIdx !== -1) {
-        // Encontrar onde o artigo termina (corta antes do rodapé do site)
-        let endIdx = body.indexOf('<div id="docFooter"', startIdx);
-        if (endIdx === -1) endIdx = body.indexOf('<footer', startIdx);
-        if (endIdx === -1) endIdx = body.indexOf('</main>', startIdx);
-
-        if (endIdx !== -1) {
-          articleContent = body.substring(startIdx, endIdx);
-          articleContent += "</div>"; // Fecha a tag por segurança
-        } else {
-          articleContent = body.substring(startIdx, startIdx + 15000); // Backup de segurança
+      let startIdx = -1;
+      
+      // Procura o primeiro marcador que aparecer no código
+      for (let marker of markers) {
+        startIdx = body.indexOf(marker);
+        if (startIdx !== -1) {
+          // Ajuste fino: Se achou a classe, volta um pouco para pegar a tag de abertura <div
+          if (marker.includes('class') || marker.includes('id')) {
+            startIdx = body.lastIndexOf('<div', startIdx);
+          }
+          break;
         }
-      } else {
-        articleContent = "<h2 style='text-align:center; padding: 20px;'>Não foi possível localizar o texto. O link pode ser inválido.</h2>";
       }
 
-      // MÁGICA 2: Ajustar imagens para caminhos absolutos
+      if (startIdx !== -1) {
+        // Agora procura onde o site termina (rodapé ou scripts finais)
+        const endMarkers = ['<div id="docFooter"', '<footer', '<div class="groupFoot"'];
+        let endIdx = -1;
+
+        for (let marker of endMarkers) {
+          endIdx = body.indexOf(marker, startIdx);
+          if (endIdx !== -1) break;
+        }
+
+        // Se não achou rodapé, pega um pedaço grande por segurança
+        if (endIdx === -1) endIdx = body.length;
+
+        extractedHtml = body.substring(startIdx, endIdx);
+      } else {
+        extractedHtml = "<h3 style='padding:20px'>Não foi possível identificar o texto principal.</h3>";
+      }
+
+      // === LIMPEZA DE ENDEREÇOS ===
+      const targetUrl = new URL(target);
       const base = targetUrl.origin;
-      articleContent = articleContent.replace(/(href|src)="(?!https?:\/\/|\/\/|data:)([^"]*?)"/gi,
+      extractedHtml = extractedHtml.replace(/(href|src)="(?!https?:\/\/|\/\/|data:)([^"]*?)"/gi,
         (_, attr, path) => {
           const abs = path.startsWith("/") ? base + path : base + "/" + path;
           return `${attr}="${abs}"`;
         }
       );
 
-      // MÁGICA 3: Remover scripts para não carregar lixo
-      articleContent = articleContent.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+      // Remove scripts maliciosos ou de tracking
+      extractedHtml = extractedHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
 
-      return new Response(articleContent, {
+      return new Response(extractedHtml, {
         status: 200,
         headers: { ...CORS_HEADERS, "Content-Type": "text/html; charset=utf-8" },
       });
 
     } catch (err) {
-      return new Response("Falha no servidor.", { status: 500, headers: CORS_HEADERS });
+      return new Response("Erro no servidor worker.", { status: 500, headers: CORS_HEADERS });
     }
   },
 };
