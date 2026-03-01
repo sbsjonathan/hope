@@ -69,9 +69,8 @@ export default {
       const afterP4 = PROCESSADOR_4(afterP3);
       const afterP5 = PROCESSADOR_5(afterP4);
       const afterP6 = PROCESSADOR_6(afterP5);
-      
-      const afterP8 = PROCESSADOR_8(afterP6); // <-- ADICIONADO AQUI
-      const afterP7 = PROCESSADOR_7(afterP8); // <-- O 7 AGORA RECEBE O 8
+      const afterP8 = PROCESSADOR_8(afterP6);
+      const afterP7 = PROCESSADOR_7(afterP8);
       
       const withPerguntas = processPerguntas(afterP7);
       const finalHtml = normalizeBlankLines(withPerguntas);
@@ -217,6 +216,7 @@ function PROCESSADOR_2(html, hexColor) {
   }
   return `${docId}\n\n${hexColor}\n\n` + out.slice(openEnd);
 }
+// <<<PROCESSADOR_2_FIM<<<
 
 // >>>PROCESSADOR_3_INICIO<<<
 function PROCESSADOR_3(html) {
@@ -226,6 +226,7 @@ function PROCESSADOR_3(html) {
   out = out.replace(/<h1\b[^>]*>[\s\S]*?<\/h1>/i, (m) => `<tema>${stripTags(m).replace(/\s+/g, " ").trim()}</tema>\n\n`);
   return out;
 }
+// <<<PROCESSADOR_3_FIM<<<
 
 // >>>PROCESSADOR_4_INICIO<<<
 function PROCESSADOR_4(html) {
@@ -236,16 +237,15 @@ function PROCESSADOR_4(html) {
     /<p\b[^>]*>\s*<span\b[^>]*\bclass=(["'])[^"']*\bparNum\b[^"']*\1[^>]*\bdata-pnum=(["'])(\d+)\2[^>]*>[\s\S]*?<\/span>([\s\S]*?)<\/p>/gi, 
     (_m, _q1, _q2, num, restHtml) => {
       let rest = restHtml || "";
-      rest = rest.replace(
-        /<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\2[^>]*>[\s\S]*?<\/a>/gi, 
-        " * "
-      );
+      rest = rest.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
+      rest = rest.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi, " * ");
       rest = rest.replace(/^\s+/, "").replace(/^\u00a0+/, "").replace(/\s+$/, "");
       return `\n\n<paragrafo>${num} ${rest}</paragrafo>\n\n`;
   });
 
   return out;
 }
+// <<<PROCESSADOR_4_FIM<<<
 
 // >>>PROCESSADOR_5_INICIO<<<
 function PROCESSADOR_5(html) {
@@ -274,6 +274,7 @@ function PROCESSADOR_5(html) {
 
   return out;
 }
+// <<<PROCESSADOR_5_FIM<<<
 
 // >>>PROCESSADOR_6_INICIO<<<
 function PROCESSADOR_6(html) {
@@ -281,7 +282,7 @@ function PROCESSADOR_6(html) {
   out = out.replace(/<div\b[^>]*\bclass=(["'])[^"']*\bblockTeach\b[^"']*\1[^>]*>\s*<aside\b[^>]*>[\s\S]*?<\/aside>/gi, (m) => {
       const h2m = m.match(/<h2\b[^>]*>[\s\S]*?<\/h2>/i);
       const titulo = h2m ? stripTags(h2m[0]).replace(/\s+/g, " ").trim() : "";
-      const itens = [];
+      const itens =[];
       m.replace(/<li\b[^>]*>[\s\S]*?<p\b[^>]*>([\s\S]*?)<\/p>[\s\S]*?<\/li>/gi, (_mm, pInner) => {
         const t = stripTags(pInner).replace(/\s+/g, " ").trim();
         if (t) itens.push(t);
@@ -302,7 +303,7 @@ function PROCESSADOR_6(html) {
       if (pMatch && pMatch[1]) {
         let pInner = pMatch[1];
         pInner = pInner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
-        pInner = pInner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\2[^>]*>[\s\S]*?<\/a>/gi, " * ");
+        pInner = pInner.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi, " * ");
         caption = stripTags(pInner).replace(/\s+/g, " ").trim();
       }
       let fig = `\n\n<figure>\n  <img src="${src}">`;
@@ -314,6 +315,52 @@ function PROCESSADOR_6(html) {
 
   return out;
 }
+// <<<PROCESSADOR_6_FIM<<<
+
+// >>>PROCESSADOR_8_INICIO<<<
+function PROCESSADOR_8(html) {
+  let out = html.replace(/\r\n/g, "\n");
+
+  out = out.replace(
+    /<div\b[^>]*\bclass=(["'])[^"']*\bboxSupplement\b[^"']*\1[^>]*>[\s\S]*?<aside\b[^>]*>([\s\S]*?)<\/aside>[\s\S]*?<\/div>/gi,
+    (m, quote, asideInner) => {
+      const partes =[];
+      const h2Match = asideInner.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i);
+      let titulo = "";
+      if (h2Match) {
+         let tHtml = h2Match[1].replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
+         titulo = stripTags(tHtml).replace(/\s+/g, " ").trim();
+         if (titulo) partes.push(titulo); 
+      }
+
+      const blockRegex = /<(p|li)\b[^>]*>([\s\S]*?)<\/\1>/gi;
+      let bm;
+      while ((bm = blockRegex.exec(asideInner)) !== null) {
+        const tag = bm[1].toLowerCase();
+        let inner = bm[2];
+
+        let plainTextCheck = stripTags(inner).replace(/\s+/g, " ").trim();
+        if (!plainTextCheck || plainTextCheck === titulo) continue;
+
+        inner = inner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
+        inner = inner.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi, " * ");
+
+        let text = inner.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__").replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
+        text = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+        text = text.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>").trim();
+
+        if (text && text !== "*") {
+           if (tag === "li") partes.push(`• ${text}`);
+           else partes.push(text);
+        }
+      }
+      return `\n\n<quadro>\n${partes.join("\n\n")}\n</quadro>\n\n`;
+    }
+  );
+
+  return out;
+}
+// <<<PROCESSADOR_8_FIM<<<
 
 // >>>PROCESSADOR_7_INICIO<<<
 function PROCESSADOR_7(html) {
@@ -339,27 +386,18 @@ function PROCESSADOR_7(html) {
       t = t.replace(/<\s*em\s*>/gi, "__EM_OPEN__").replace(/<\s*\/\s*em\s*>/gi, "__EM_CLOSE__");
       
       const links =[];
-      // CAÇA TODOS OS LINKS E OS TRANSFORMA NO PADRÃO ESPERADO
       t = t.replace(/<a\b[^>]*\bhref=(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a>/gi, (m, quote, href, inner) => {
           let url = href;
-          // Se for link relativo da jw, coloca o domínio
-          if (url.startsWith("/")) {
-              url = "https://jw.org" + url;
-          }
-          // Limpa o texto interno para retirar marcações temporárias e outras tags inúteis
+          if (url.startsWith("/")) url = "https://jw.org" + url;
           let text = inner.replace(/__[A-Z]+_[A-Z]+__/g, "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ");
-          
           links.push(`<link><a href="${url}">${text}</a></link>`);
           return `__LINK_${links.length - 1}__`;
       });
       
       t = t.replace(/<[^>]+>/g, "");
-      
       t = t.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>");
       t = t.replace(/__STRONG_OPEN__/g, "<strong>").replace(/__STRONG_CLOSE__/g, "</strong>");
       t = t.replace(/__EM_OPEN__/g, "<em>").replace(/__EM_CLOSE__/g, "</em>");
-      
-      // RESTAURA OS LINKS AGORA LIMPÍSSIMOS E ENVOLTOS NA TAG <LINK>
       t = t.replace(/__LINK_(\d+)__/g, (m, idx) => links[parseInt(idx)]);
       
       return t.replace(/\s+/g, " ").trim();
@@ -379,9 +417,7 @@ function PROCESSADOR_7(html) {
           } else {
               cleanInner = " * " + cleanInner;
           }
-          
           let noteText = preserveFormatAndLinks(cleanInner);
-          // Força o espaço em branco após o asterisco no início da nota
           noteText = noteText.replace(/^\s*\*\s*/, "* ");
           
           if (noteText) notes.push(`<nota> ${noteText}</nota>`);
@@ -393,8 +429,6 @@ function PROCESSADOR_7(html) {
   out = out.replace(/<\/?article\b[^>]*>/gi, "");
   out = out.replace(/<\/div>\s*(<recap>)/gi, "$1"); 
   out = out.replace(/(<\/recap>)\s*<\/div>/gi, "$1");
-  
-  // Limpa o resto das divs inúteis que sobram no final
   out = out.replace(/(?:<div\b[^>]*>|<\/div>|\s)+$/gi, "");
 
   if (notes.length > 0) {
@@ -404,58 +438,3 @@ function PROCESSADOR_7(html) {
   return out;
 }
 // <<<PROCESSADOR_7_FIM<<<
-
-
-// >>>PROCESSADOR_8_INICIO<<<
-function PROCESSADOR_8(html) {
-  let out = html.replace(/\r\n/g, "\n");
-
-  out = out.replace(
-    /<div\b[^>]*\bclass=(["'])[^"']*\bboxSupplement\b[^"']*\1[^>]*>[\s\S]*?<aside\b[^>]*>([\s\S]*?)<\/aside>[\s\S]*?<\/div>/gi,
-    (m, quote, asideInner) => {
-      
-      const partes =[];
-
-      // 1. Extrai o título (h2)
-      const h2Match = asideInner.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i);
-      let titulo = "";
-      if (h2Match) {
-         let tHtml = h2Match[1].replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
-         titulo = stripTags(tHtml).replace(/\s+/g, " ").trim();
-         if (titulo) partes.push(titulo); // Adiciona o título como o primeiro bloco
-      }
-
-      // 2. Extrai sequencialmente os blocos (p e li)
-      const blockRegex = /<(p|li)\b[^>]*>([\s\S]*?)<\/\1>/gi;
-      let bm;
-      
-      while ((bm = blockRegex.exec(asideInner)) !== null) {
-        const tag = bm[1].toLowerCase();
-        let inner = bm[2];
-
-        // Ignora caso a regex tenha capturado o próprio título sem querer
-        let plainTextCheck = stripTags(inner).replace(/\s+/g, " ").trim();
-        if (!plainTextCheck || plainTextCheck === titulo) continue;
-
-        // Limpa as notas de rodapé internas
-        inner = inner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\2[^>]*>[\s\S]*?<\/a>/gi, " * ");
-
-        // Protege BBL e limpa o resto do HTML
-        let text = inner.replace(/<\s*bbl\s*>/gi, "__BBL_OPEN__").replace(/<\s*\/\s*bbl\s*>/gi, "__BBL_CLOSE__");
-        text = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-        text = text.replace(/__BBL_OPEN__/g, "<bbl>").replace(/__BBL_CLOSE__/g, "</bbl>").trim();
-
-        if (text && text !== "*") {
-           if (tag === "li") partes.push(`• ${text}`);
-           else partes.push(text);
-        }
-      }
-
-      // 3. Monta o quadro unindo TODAS as partes com \n\n (espaço perfeito entre elas)
-      return `\n\n<quadro>\n${partes.join("\n\n")}\n</quadro>\n\n`;
-    }
-  );
-
-  return out;
-}
-// <<<PROCESSADOR_8_FIM<<<
