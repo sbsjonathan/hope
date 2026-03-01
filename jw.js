@@ -302,7 +302,7 @@ function PROCESSADOR_6(html) {
       if (pMatch && pMatch[1]) {
         let pInner = pMatch[1];
         pInner = pInner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>/gi, "");
-        pInner = pInner.replace(/<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\1[^>]*>[\s\S]*?<\/a>/gi, "");
+        pInner = pInner.replace(/<span\b[^>]*\bclass=(["'])[^"']*\brefID\b[^"']*\1[^>]*>[\s\S]*?<\/span>\s*<a\b[^>]*\bclass=(["'])[^"']*\bfootnoteLink\b[^"']*\2[^>]*>[\s\S]*?<\/a>/gi, " * ");
         caption = stripTags(pInner).replace(/\s+/g, " ").trim();
       }
       let fig = `\n\n<figure>\n  <img src="${src}">`;
